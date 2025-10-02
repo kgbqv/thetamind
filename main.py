@@ -323,12 +323,12 @@ async def generate_quiz(request: Request, topic: str = Form(...), difficulty: st
     except (json.JSONDecodeError, TypeError):
         return JSONResponse(content={"error": "Failed to generate a valid quiz question from AI."}, status_code=500)
 
-@app.get("/algebra-challenges", response_class=HTMLResponse)
+@app.get("/algebra_challenges", response_class=HTMLResponse)
 async def algebra_challenges_page(request: Request):
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/login")
-    return templates.TemplateResponse("algebra-challenges.html", {"request": request, "user": user})
+    return templates.TemplateResponse("algebra_challenges.html", {"request": request, "user": user})
 
 @app.get("/api/get_challenge_progress")
 async def get_challenge_progress(request: Request):
