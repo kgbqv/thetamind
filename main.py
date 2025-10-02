@@ -455,54 +455,6 @@ async def get_challenge_progress(request: Request):
     except (json.JSONDecodeError, TypeError):
         return JSONResponse(content={"error": "Failed to get a valid evaluation from AI."}, status_code=500)
 
-@app.post("/api/evaluate_challenge")
-async def evaluate_challenge(request: Request, 
-                           question: str = Form(...), 
-                           user_solution: str = Form(...), 
-                           correct_solution: str = Form(...),
-                           topic: str = Form(...),
-                           difficulty: str = Form(...),
-                           node_id: str = Form(...)):
-    user = get_current_user(request)
-    if not user:
-        return JSONResponse(content={"error": "Authentication required"}, status_code=401)
-    
-    conn = sqlite3.connect(DB)
-    cur = conn.cursor()
-    
-    # Get completed nodes
-    cur.execute("SELECT node_id FROM user_progress WHERE user_id = ?", (user["id"],))
-    completed_nodes = [row[0] for row in cur.fetchall()]
-    
-    # Define challenge nodes and their prerequisites
-    challenge_nodes = {
-        'alg_challenge_1': [],
-        'alg_challenge_2': ['alg_challenge_1'],
-        'alg_challenge_3': ['alg_challenge_2'],
-        'alg_challenge_4': ['alg_challenge_2'],
-        'alg_challenge_5': ['alg_challenge_4'],
-        'alg_challenge_6': ['alg_challenge_5'],
-        'alg_challenge_7': ['alg_challenge_5', 'alg_challenge_6'],
-        'alg_challenge_8': ['alg_challenge_6'],
-        'alg_challenge_9': ['alg_challenge_3', 'alg_challenge_4'],
-        'alg_challenge_10': ['alg_challenge_2'],
-        'alg_challenge_11': ['alg_challenge_7', 'alg_challenge_8'],
-        'alg_challenge_12': ['alg_challenge_11']
-    }
-    
-    # Calculate unlocked nodes
-    unlocked_nodes = []
-    for node_id, prerequisites in challenge_nodes.items():
-        if all(prereq in completed_nodes for prereq in prerequisites) or node_id == 'alg_challenge_1':
-            unlocked_nodes.append(node_id)
-    
-    conn.close()
-    
-    return JSONResponse(content={
-        "completed_nodes": completed_nodes,
-        "unlocked_nodes": unlocked_nodes
-    })
-
 @app.post("/api/evaluate_answer")
 async def evaluate_answer(request: Request, question: str = Form(...), user_solution: str = Form(...), correct_solution: str = Form(...), topic: str = Form(...), difficulty: str = Form(...)):
     user = get_current_user(request)
