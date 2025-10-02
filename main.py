@@ -645,8 +645,11 @@ async def evaluate_challenge(request: Request,
                            (user["id"], node_id))
                 
                 # Update coins
+                conn.commit()
+                conn.close()
                 update_user_coins(user["username"], coins_earned)
-                
+                conn = sqlite3.connect(DB)
+                cur = conn.cursor()
                 # Check for badge achievements
                 badge_earned = check_badge_achievements(cur, user["id"])
                 
