@@ -40,6 +40,23 @@
                 <h2>Learning Path: Algebra</h2>
                 <p class="section-subtitle">Progress through the lessons sequentially. Master each concept before moving to the next.</p>
                 
+                <!-- Gamification Header -->
+                <div class="gamification-header">
+                    <div class="stats-display">
+                        <div class="stat-item" id="user-coins">
+                            <i class="fas fa-coins"></i><span>Loading...</span>
+                        </div>
+                        <div class="stat-item" id="user-badges">
+                            <!-- Badges will be loaded here by JS -->
+                        </div>
+                    </div>
+                    <div class="mode-selector">
+                        <button class="btn mode-btn active" data-mode="path"><i class="fas fa-route"></i> Learning Path</button>
+                        <button class="btn mode-btn" data-mode="quiz"><i class="fas fa-vial"></i> Quizzes</button>
+                        <button class="btn mode-btn" data-mode="challenge"><i class="fas fa-trophy"></i> Challenges</button>
+                    </div>
+                </div>
+
                 <div class="learning-path">
                     <div class="path-step">
                         <div class="step-icon"><i class="fas fa-cubes"></i></div>
@@ -78,6 +95,26 @@
                              <div class="step-actions">
                                 <button class="btn btn-secondary learn-btn" data-topic="Polynomials and Factoring">Learn</button>
                                 <button class="btn btn-primary practice-btn" data-topic="Polynomials and Factoring">Practice</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="path-step">
+                        <div class="step-icon"><i class="fas fa-superscript"></i></div>
+                        <div class="step-content">
+                            <h3>5. Polynomials and Factoring</h3><p>Operations with polynomials and various factoring techniques.</p>
+                            <div class="step-actions">
+                                <button class="btn btn-secondary learn-btn" data-topic="Polynomials and Factoring">Learn</button>
+                                <button class="btn btn-primary practice-btn" data-topic="Polynomials and Factoring">Practice</button>
+                            </div>
+                        </div>
+                    </div>
+                     <div class="path-step">
+                        <div class="step-icon"><i class="fas fa-square-root-alt"></i></div>
+                        <div class="step-content">
+                            <h3>6. Quadratic Equations</h3><p>Solving by factoring, completing the square, and the quadratic formula.</p>
+                             <div class="step-actions">
+                                <button class="btn btn-secondary learn-btn" data-topic="Quadratic Equations">Learn</button>
+                                <button class="btn btn-primary practice-btn" data-topic="Quadratic Equations">Practice</button>
                             </div>
                         </div>
                     </div>
@@ -126,6 +163,7 @@
     </main>
     <footer class="footer"><div class="container"><p>&copy; 2025 ThetaMind. All rights reserved.</p></div></footer>
     <script src="/static/js/algebra.js"></script>
+    <script src="/static/js/gamification.js"></script>
     <script src="/static/js/script.js"></script>
 </body>
 </html>

@@ -38,7 +38,9 @@
             <p>Your personal AI-powered math tutor, unlocking potential one equation at a time.</p>
             <div class="banner-buttons">
                 <a href="/tools" class="btn btn-primary">Start Now</a>
-                <a href="/register" class="btn btn-secondary">Register Now</a>
+                <a href="{{ '/dashboard' if user else '/register' }}" class="btn btn-secondary">
+                    {{ 'Go to Dashboard' if user else 'Register Now' }}
+                </a>
             </div>
         </div>
     </header>

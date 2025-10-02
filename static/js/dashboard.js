@@ -1,3 +1,45 @@
+// Add this function to dashboard.js
+async function loadUserBadges() {
+    try {
+        const response = await fetch('/api/get_user_stats');
+        if (response.ok) {
+            const stats = await response.json();
+            displayBadges(stats.badges);
+        }
+    } catch (error) {
+        console.error('Failed to load badges:', error);
+    }
+}
+
+function displayBadges(badges) {
+    const container = document.getElementById('badges-container');
+    if (!container) return;
+
+    if (badges.length === 0) {
+        container.innerHTML = '<p class="no-badges">No badges earned yet. Complete challenges to earn badges!</p>';
+        return;
+    }
+
+    container.innerHTML = badges.map(badge => `
+        <div class="badge-item">
+            <i class="fas fa-medal" style="color: ${getBadgeColor(badge)}"></i>
+            <span class="badge-name">${badge}</span>
+        </div>
+    `).join('');
+}
+
+function getBadgeColor(badgeId) {
+    const colors = {
+        "Algebra Novice": "#CD7F32",
+        "Algebra Apprentice": "#C0C0C0", 
+        "Algebra Master": "#FFD700",
+        "Algebra Champion": "#E5E4E2",
+        "Linear Specialist": "#4CAF50",
+        "Polynomial Pro": "#2196F3"
+    };
+    return colors[badgeId] || "#FFD700";
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const statsDataEl = document.getElementById('stats-data');
     if (!statsDataEl) return;
@@ -107,4 +149,5 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    loadUserBadges();
 });
