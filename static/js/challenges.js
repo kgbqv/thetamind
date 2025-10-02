@@ -1,17 +1,20 @@
 function md2html(md) {
-    if (!md) return '';
     const raw = marked.parse(md);
     const clean = DOMPurify.sanitize(raw);
-    console.log(raw);
-    console.log(md);
     return clean;
 }
+
 class ChallengeGame {
     constructor() {
         this.nodes = [];
         this.currentNode = null;
         this.userProgress = [];
-        this.init();
+    }
+
+    static async create() {
+        const instance = new ChallengeGame();
+        await instance.init();
+        return instance;
     }
 
     async init() {
@@ -19,6 +22,7 @@ class ChallengeGame {
         await this.generateChallengeMap();
         this.setupEventListeners();
         this.updateProgressBar();
+        this.updateTotalExp(); // ensure exp shows after data is ready
     }
 
     async loadUserProgress() {
@@ -34,21 +38,96 @@ class ChallengeGame {
         }
     }
 
+    updateTotalExp() {
+        let totalExp = 0;
+        this.userProgress.forEach(nodeId => {
+            const node = this.nodes.find(n => n.id === nodeId);
+            if (node) {
+                totalExp += node.exp;
+            }
+        });
+        this.updateHintCount();
+        const hintCountElement = document.getElementById('total-hint');
+        let hintCount = hintCountElement.textContent;
+        hintCount = parseInt(hintCount) + 1;
+        hintCountElement.textContent = hintCount + ' hint used';
+        totalExp = totalExp - hintCount*50;
+
+        const totalExpElement = document.getElementById('total-exp-earned');
+        if (totalExpElement) {
+            totalExpElement.textContent = `${totalExp} exp earned`;
+        }
+    }
+
+    updateHintCount() {
+        let hintCount = 0;
+        const hintCountElement = document.getElementById('total-hint');
+        hintCount = hintCountElement.textContent.split(' ')[0];
+        hintCount = parseInt(hintCount) + 1;
+        hintCountElement.textContent = hintCount + ' hint used';
+    }
+
     generateChallengeMap() {
-        // Define challenge nodes
         this.nodes = [
-            { id: 'alg_challenge_1', title: 'Basic Expressions', topic: 'Foundations of Algebra', difficulty: 'Easy', coins: 50, icon: 'fas fa-cubes', prerequisites: [] },
-            { id: 'alg_challenge_2', title: 'Linear Equations', topic: 'Solving Linear Equations', difficulty: 'Easy', coins: 50, icon: 'fas fa-equals', prerequisites: ['alg_challenge_1'] },
-            { id: 'alg_challenge_3', title: 'Inequalities', topic: 'Inequalities', difficulty: 'Medium', coins: 75, icon: 'fas fa-less-than-equal', prerequisites: ['alg_challenge_2'] },
-            { id: 'alg_challenge_4', title: 'Polynomial Basics', topic: 'Polynomials and Factoring', difficulty: 'Medium', coins: 75, icon: 'fas fa-superscript', prerequisites: ['alg_challenge_2'] },
-            { id: 'alg_challenge_5', title: 'Factoring', topic: 'Polynomials and Factoring', difficulty: 'Hard', coins: 100, icon: 'fas fa-superscript', prerequisites: ['alg_challenge_4'] },
-            { id: 'alg_challenge_6', title: 'Quadratic Equations', topic: 'Quadratic Equations', difficulty: 'Hard', coins: 100, icon: 'fas fa-square-root-alt', prerequisites: ['alg_challenge_5'] },
-            { id: 'alg_challenge_7', title: 'Advanced Factoring', topic: 'Polynomials and Factoring', difficulty: 'Very Hard', coins: 150, icon: 'fas fa-superscript', prerequisites: ['alg_challenge_5', 'alg_challenge_6'] },
-            { id: 'alg_challenge_8', title: 'Complex Quadratics', topic: 'Quadratic Equations', difficulty: 'Very Hard', coins: 150, icon: 'fas fa-square-root-alt', prerequisites: ['alg_challenge_6'] },
-            { id: 'alg_challenge_9', title: 'Systems', topic: 'Systems of Equations', difficulty: 'Hard', coins: 125, icon: 'fas fa-project-diagram', prerequisites: ['alg_challenge_3', 'alg_challenge_4'] },
-            { id: 'alg_challenge_10', title: 'Word Problems', topic: 'Solving Linear Equations', difficulty: 'Medium', coins: 100, icon: 'fas fa-font', prerequisites: ['alg_challenge_2'] },
-            { id: 'alg_challenge_11', title: 'Master Challenge', topic: 'Quadratic Equations', difficulty: 'Very Hard', coins: 200, icon: 'fas fa-trophy', prerequisites: ['alg_challenge_7', 'alg_challenge_8'] },
-            { id: 'alg_challenge_12', title: 'Final Boss', topic: 'Polynomials and Factoring', difficulty: 'Very Hard', coins: 250, icon: 'fas fa-crown', prerequisites: ['alg_challenge_11'] }
+            // Foundation Path (10 nodes)
+            { id: 'alg_challenge_1', title: 'Basic Expressions', topic: 'Foundations of Algebra', difficulty: 'Easy', exp: 25, icon: 'fas fa-cubes', prerequisites: [] },
+            { id: 'alg_challenge_2', title: 'Order of Ops', topic: 'Foundations of Algebra', difficulty: 'Easy', exp: 25, icon: 'fas fa-sort-amount-down', prerequisites: ['alg_challenge_1'] },
+            { id: 'alg_challenge_3', title: 'Simple Equations', topic: 'Solving Linear Equations', difficulty: 'Easy', exp: 30, icon: 'fas fa-equals', prerequisites: ['alg_challenge_2'] },
+            { id: 'alg_challenge_4', title: 'Like Terms', topic: 'Foundations of Algebra', difficulty: 'Easy', exp: 30, icon: 'fas fa-layer-group', prerequisites: ['alg_challenge_3'] },
+            { id: 'alg_challenge_5', title: 'Distributive Prop', topic: 'Foundations of Algebra', difficulty: 'Medium', exp: 50, icon: 'fas fa-expand', prerequisites: ['alg_challenge_4'] },
+            { id: 'alg_challenge_6', title: 'Two-Step Eqs', topic: 'Solving Linear Equations', difficulty: 'Medium', exp: 50, icon: 'fas fa-footsteps', prerequisites: ['alg_challenge_5'] },
+            { id: 'alg_challenge_7', title: 'Variables Both Sides', topic: 'Solving Linear Equations', difficulty: 'Medium', exp: 60, icon: 'fas fa-arrows-alt-h', prerequisites: ['alg_challenge_6'] },
+            { id: 'alg_challenge_8', title: 'Equation Word Probs', topic: 'Solving Linear Equations', difficulty: 'Medium', exp: 60, icon: 'fas fa-font', prerequisites: ['alg_challenge_7'] },
+            { id: 'alg_challenge_9', title: 'Multi-Step Eqs', topic: 'Solving Linear Equations', difficulty: 'Hard', exp: 80, icon: 'fas fa-sitemap', prerequisites: ['alg_challenge_8'] },
+            { id: 'alg_challenge_10', title: 'Complex Equations', topic: 'Solving Linear Equations', difficulty: 'Hard', exp: 80, icon: 'fas fa-cogs', prerequisites: ['alg_challenge_9'] },
+
+            // Inequalities Path (8 nodes)
+            { id: 'alg_challenge_11', title: 'Basic Inequalities', topic: 'Inequalities', difficulty: 'Easy', exp: 35, icon: 'fas fa-less-than', prerequisites: ['alg_challenge_3'] },
+            { id: 'alg_challenge_12', title: 'Ineq Graphing', topic: 'Inequalities', difficulty: 'Medium', exp: 55, icon: 'fas fa-chart-line', prerequisites: ['alg_challenge_11'] },
+            { id: 'alg_challenge_13', title: 'Compound Ineq', topic: 'Inequalities', difficulty: 'Medium', exp: 65, icon: 'fas fa-link', prerequisites: ['alg_challenge_12'] },
+            { id: 'alg_challenge_14', title: 'Absolute Value Ineq', topic: 'Inequalities', difficulty: 'Hard', exp: 85, icon: 'fas fa-absolute-value', prerequisites: ['alg_challenge_13'] },
+            { id: 'alg_challenge_15', title: 'Ineq Word Probs', topic: 'Inequalities', difficulty: 'Hard', exp: 85, icon: 'fas fa-tasks', prerequisites: ['alg_challenge_14'] },
+            { id: 'alg_challenge_16', title: 'System of Ineq', topic: 'Inequalities', difficulty: 'Very Hard', exp: 120, icon: 'fas fa-project-diagram', prerequisites: ['alg_challenge_15'] },
+
+            // Polynomials Path (12 nodes)
+            { id: 'alg_challenge_17', title: 'Add Polynomials', topic: 'Polynomials and Factoring', difficulty: 'Easy', exp: 40, icon: 'fas fa-plus-circle', prerequisites: ['alg_challenge_4'] },
+            { id: 'alg_challenge_18', title: 'Subtract Polynomials', topic: 'Polynomials and Factoring', difficulty: 'Easy', exp: 40, icon: 'fas fa-minus-circle', prerequisites: ['alg_challenge_17'] },
+            { id: 'alg_challenge_19', title: 'Multiply Mono', topic: 'Polynomials and Factoring', difficulty: 'Medium', exp: 60, icon: 'fas fa-times-circle', prerequisites: ['alg_challenge_18'] },
+            { id: 'alg_challenge_20', title: 'Multiply Poly', topic: 'Polynomials and Factoring', difficulty: 'Medium', exp: 70, icon: 'fas fa-calculator', prerequisites: ['alg_challenge_19'] },
+            { id: 'alg_challenge_21', title: 'FOIL Method', topic: 'Polynomials and Factoring', difficulty: 'Medium', exp: 70, icon: 'fas fa-th', prerequisites: ['alg_challenge_20'] },
+            { id: 'alg_challenge_22', title: 'GCF Factoring', topic: 'Polynomials and Factoring', difficulty: 'Medium', exp: 75, icon: 'fas fa-compress', prerequisites: ['alg_challenge_21'] },
+            { id: 'alg_challenge_23', title: 'Factor Trinomials', topic: 'Polynomials and Factoring', difficulty: 'Hard', exp: 90, icon: 'fas fa-puzzle-piece', prerequisites: ['alg_challenge_22'] },
+            { id: 'alg_challenge_24', title: 'Factor Grouping', topic: 'Polynomials and Factoring', difficulty: 'Hard', exp: 95, icon: 'fas fa-object-group', prerequisites: ['alg_challenge_23'] },
+            { id: 'alg_challenge_25', title: 'Special Products', topic: 'Polynomials and Factoring', difficulty: 'Hard', exp: 100, icon: 'fas fa-star', prerequisites: ['alg_challenge_24'] },
+            { id: 'alg_challenge_26', title: 'Factor Completely', topic: 'Polynomials and Factoring', difficulty: 'Very Hard', exp: 130, icon: 'fas fa-check-double', prerequisites: ['alg_challenge_25'] },
+            { id: 'alg_challenge_27', title: 'Poly Division', topic: 'Polynomials and Factoring', difficulty: 'Very Hard', exp: 140, icon: 'fas fa-divide', prerequisites: ['alg_challenge_26'] },
+            { id: 'alg_challenge_28', title: 'Synthetic Division', topic: 'Polynomials and Factoring', difficulty: 'Very Hard', exp: 150, icon: 'fas fa-magic', prerequisites: ['alg_challenge_27'] },
+
+            // Quadratics Path (10 nodes)
+            { id: 'alg_challenge_29', title: 'Quadratic Intro', topic: 'Quadratic Equations', difficulty: 'Medium', exp: 65, icon: 'fas fa-chart-area', prerequisites: ['alg_challenge_21'] },
+            { id: 'alg_challenge_30', title: 'Solve by Factoring', topic: 'Quadratic Equations', difficulty: 'Medium', exp: 70, icon: 'fas fa-filter', prerequisites: ['alg_challenge_29'] },
+            { id: 'alg_challenge_31', title: 'Square Roots', topic: 'Quadratic Equations', difficulty: 'Medium', exp: 75, icon: 'fas fa-square-root-alt', prerequisites: ['alg_challenge_30'] },
+            { id: 'alg_challenge_32', title: 'Complete Square', topic: 'Quadratic Equations', difficulty: 'Hard', exp: 95, icon: 'fas fa-square', prerequisites: ['alg_challenge_31'] },
+            { id: 'alg_challenge_33', title: 'Quadratic Formula', topic: 'Quadratic Equations', difficulty: 'Hard', exp: 100, icon: 'fas fa-infinity', prerequisites: ['alg_challenge_32'] },
+            { id: 'alg_challenge_34', title: 'Discriminant', topic: 'Quadratic Equations', difficulty: 'Hard', exp: 105, icon: 'fas fa-filter', prerequisites: ['alg_challenge_33'] },
+            { id: 'alg_challenge_35', title: 'Quadratic Graphs', topic: 'Quadratic Equations', difficulty: 'Very Hard', exp: 135, icon: 'fas fa-project-diagram', prerequisites: ['alg_challenge_34'] },
+            { id: 'alg_challenge_36', title: 'Vertex Form', topic: 'Quadratic Equations', difficulty: 'Very Hard', exp: 140, icon: 'fas fa-dot-circle', prerequisites: ['alg_challenge_35'] },
+            { id: 'alg_challenge_37', title: 'Applications', topic: 'Quadratic Equations', difficulty: 'Very Hard', exp: 145, icon: 'fas fa-rocket', prerequisites: ['alg_challenge_36'] },
+            { id: 'alg_challenge_38', title: 'Complex Solutions', topic: 'Quadratic Equations', difficulty: 'Very Hard', exp: 150, icon: 'fas fa-atom', prerequisites: ['alg_challenge_37'] },
+
+            // Advanced Path (10 nodes)
+            { id: 'alg_challenge_39', title: 'Rational Expressions', topic: 'Rational Expressions', difficulty: 'Hard', exp: 110, icon: 'fas fa-divide', prerequisites: ['alg_challenge_26', 'alg_challenge_33'] },
+            { id: 'alg_challenge_40', title: 'Systems of Eqs', topic: 'Systems of Equations', difficulty: 'Hard', exp: 115, icon: 'fas fa-sitemap', prerequisites: ['alg_challenge_10'] },
+            { id: 'alg_challenge_41', title: 'Exponential Eqs', topic: 'Exponents and Radicals', difficulty: 'Hard', exp: 120, icon: 'fas fa-superscript', prerequisites: ['alg_challenge_39'] },
+            { id: 'alg_challenge_42', title: 'Radical Eqs', topic: 'Exponents and Radicals', difficulty: 'Very Hard', exp: 155, icon: 'fas fa-radical', prerequisites: ['alg_challenge_41'] },
+            { id: 'alg_challenge_43', title: 'Functions Intro', topic: 'Functions and Graphing', difficulty: 'Medium', exp: 80, icon: 'fas fa-function', prerequisites: ['alg_challenge_29'] },
+            { id: 'alg_challenge_44', title: 'Function Operations', topic: 'Functions and Graphing', difficulty: 'Hard', exp: 125, icon: 'fas fa-cogs', prerequisites: ['alg_challenge_43'] },
+            { id: 'alg_challenge_45', title: 'Composite Functions', topic: 'Functions and Graphing', difficulty: 'Very Hard', exp: 160, icon: 'fas fa-sitemap', prerequisites: ['alg_challenge_44'] },
+            { id: 'alg_challenge_46', title: 'Inverse Functions', topic: 'Functions and Graphing', difficulty: 'Very Hard', exp: 165, icon: 'fas fa-exchange-alt', prerequisites: ['alg_challenge_45'] },
+            { id: 'alg_challenge_47', title: 'Advanced Systems', topic: 'Systems of Equations', difficulty: 'Very Hard', exp: 170, icon: 'fas fa-network-wired', prerequisites: ['alg_challenge_40', 'alg_challenge_38'] },
+            { id: 'alg_challenge_48', title: 'Word Problems Master', topic: 'Applications', difficulty: 'Very Hard', exp: 175, icon: 'fas fa-brain', prerequisites: ['alg_challenge_47'] },
+            { id: 'alg_challenge_49', title: 'Algebra Master', topic: 'Comprehensive', difficulty: 'Very Hard', exp: 200, icon: 'fas fa-trophy', prerequisites: ['alg_challenge_48'] },
+            { id: 'alg_challenge_50', title: 'Final Challenge', topic: 'Comprehensive', difficulty: 'Very Hard', exp: 250, icon: 'fas fa-crown', prerequisites: ['alg_challenge_49'] }
         ];
 
         const mapContainer = document.getElementById('challenge-map');
@@ -82,7 +161,7 @@ class ChallengeGame {
         nodeDiv.innerHTML = `
             <div class="node-icon"><i class="${node.icon}"></i></div>
             <div class="node-title">${node.title}</div>
-            <div class="node-reward">${node.coins}</div>
+            <div class="node-reward">${node.exp}</div>
         `;
 
         if (isUnlocked && !isCompleted) {
@@ -145,7 +224,7 @@ class ChallengeGame {
 
         // Reset modal state
         document.getElementById('challenge-title').textContent = node.title;
-        document.getElementById('reward-amount').textContent = `+${node.coins} coins`;
+        document.getElementById('reward-amount').textContent = `+${node.exp} exp`;
         document.getElementById('difficulty-badge').textContent = node.difficulty;
         document.getElementById('difficulty-badge').className = `difficulty-badge difficulty-${node.difficulty.toLowerCase()}`;
         
@@ -213,7 +292,7 @@ class ChallengeGame {
             
             if (result.is_correct) {
                 feedbackArea.innerHTML = `<div class="success-message">${md2html(result.feedback)}</div>`;
-                this.showSuccessModal(result.coins_earned, result.badge_earned);
+                this.showSuccessModal(result.exp_earned, result.badge_earned);
             } else {
                 feedbackArea.innerHTML = `
                     <div class="error-message">${md2html(result.feedback)}</div>
@@ -234,25 +313,33 @@ class ChallengeGame {
         const hintBtn = document.getElementById('buy-hint-btn');
         const hintArea = document.getElementById('hint-area');
 
+        const userExp = document.getElementById('total-exp-earned').textContent;
+        const userExpValue = parseInt(userExp.split(' ')[0]);
+        if (userExpValue < 50) {
+            alert('Not enough exp to buy hint');
+            return;
+        }
+
         try {
             const response = await fetch('/api/buy_hint', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: `node_id=${encodeURIComponent(this.currentNode.id)}&coins=50`
+                body: `node_id=${encodeURIComponent(this.currentNode.id)}`
             });
 
             const result = await response.json();
-
+            console.log(result);
             if (result.success) {
                 hintArea.style.display = 'block';
                 hintArea.innerHTML = `<strong>Hint:</strong> ${md2html(result.hint)}`;
                 hintBtn.disabled = true;
                 hintBtn.innerHTML = '<i class="fas fa-check"></i> Hint Purchased';
                 
-                // Update coins display
+                // Update exp display
                 updateUserStats();
+                this.updateHintCount();
             } else {
                 alert(result.error || 'Failed to buy hint');
             }
@@ -262,15 +349,15 @@ class ChallengeGame {
         }
     }
 
-    showSuccessModal(coinsEarned, badgeEarned) {
+    showSuccessModal(expEarned, badgeEarned) {
         document.getElementById('challenge-modal').style.display = 'none';
         
         const successModal = document.getElementById('success-modal');
-        const coinsEarnedElement = document.getElementById('coins-earned');
+        const expEarnedElement = document.getElementById('exp-earned');
         const badgeEarnedElement = document.getElementById('badge-earned');
         const successMessage = document.getElementById('success-message');
 
-        coinsEarnedElement.textContent = `+${coinsEarned} coins`;
+        expEarnedElement.textContent = `+ ${expEarned} exp`;
         
         if (badgeEarned) {
             badgeEarnedElement.style.display = 'flex';
@@ -298,8 +385,7 @@ class ChallengeGame {
     }
 }
 
-// Initialize the game when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    window.challengeGame = new ChallengeGame();
-    updateUserStats();
+document.addEventListener('DOMContentLoaded', async () => {
+    window.challengeGame = await ChallengeGame.create(); // wait for full setup
+    updateUserStats(); // can run afterward
 });

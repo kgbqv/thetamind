@@ -1,8 +1,6 @@
 function md2html(md) {
     const raw = marked.parse(md);
     const clean = DOMPurify.sanitize(raw);
-    console.log(raw);
-    console.log(md);
     return clean;
 }
 

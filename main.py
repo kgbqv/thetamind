@@ -498,6 +498,10 @@ async def evaluate_answer(request: Request, question: str = Form(...), user_solu
 
                 # Check for badge achievements
                 badge_earned = check_badge_achievements(cur, user["id"])
+                if badge_earned:
+                    # Update badge in database
+                    cur.execute("INSERT INTO user_badges (user_id, badge_id) VALUES (?, ?)", 
+                               (user["id"], badge_earned))
 
             except sqlite3.IntegrityError:
                 # Node already completed
@@ -514,18 +518,10 @@ async def evaluate_answer(request: Request, question: str = Form(...), user_solu
     except (json.JSONDecodeError, TypeError):
         return JSONResponse(content={"error": "Failed to get a valid evaluation from AI."}, status_code=500)
 @app.post("/api/buy_hint")
-async def buy_hint(request: Request, node_id: str = Form(...), coins: int = Form(...)):
+async def buy_hint(request: Request, node_id: str = Form(...)):
     user = get_current_user(request)
     if not user:
         return JSONResponse(content={"error": "Authentication required"}, status_code=401)
-
-    user_coins = get_coins(user["username"])
-
-    if user_coins < coins:
-        return JSONResponse(content={"error": "Not enough coins"}, status_code=400)
-
-    # Deduct coins
-    update_user_coins(user["username"], -coins)
 
     # Generate hint based on node
     hint = generate_hint_for_node(node_id)
@@ -627,7 +623,7 @@ async def evaluate_challenge(request: Request,
     try:
         evaluation = json.loads(ai_response)
         is_correct = evaluation.get("is_correct", False)
-        coins_earned = 0
+        exp_earned = 0
         badge_earned = None
 
         conn = sqlite3.connect(DB)
@@ -637,7 +633,7 @@ async def evaluate_challenge(request: Request,
             # Calculate coins earned
             base_coins = TOPIC_WEIGHTS.get(topic, 1.0)
             multiplier = DIFFICULTY_MULTIPLIERS.get(difficulty, 1)
-            coins_earned = int(base_coins * multiplier)
+            exp_earned = int(base_coins * multiplier)
 
             # Mark node as completed if not already
             try:
@@ -647,7 +643,7 @@ async def evaluate_challenge(request: Request,
                 # Update coins
                 conn.commit()
                 conn.close()
-                update_user_coins(user["username"], coins_earned)
+                update_user_coins(user["username"], exp_earned)
                 conn = sqlite3.connect(DB)
                 cur = conn.cursor()
                 # Check for badge achievements
@@ -664,7 +660,7 @@ async def evaluate_challenge(request: Request,
         conn.commit()
         conn.close()
         
-        evaluation["coins_earned"] = coins_earned
+        evaluation["exp_earned"] = exp_earned
         if badge_earned:
             evaluation["badge_earned"] = badge_earned
             
@@ -727,21 +723,42 @@ def check_badge_achievements(cur, user_id):
     badges_earned = []
     
     # Check for completion badges
-    if len(completed_nodes) >= 3:
-        badges_earned.append("Algebra Novice")
-    if len(completed_nodes) >= 6:
-        badges_earned.append("Algebra Apprentice")
-    if len(completed_nodes) >= 9:
+    if len(completed_nodes) >= 5:
+        badges_earned.append("Algebra Explorer")
+    if len(completed_nodes) >= 15:
+        badges_earned.append("Algebra Adventurer")
+    if len(completed_nodes) >= 25:
+        badges_earned.append("Algebra Specialist")
+    if len(completed_nodes) >= 35:
+        badges_earned.append("Algebra Expert")
+    if len(completed_nodes) >= 45:
         badges_earned.append("Algebra Master")
-    if len(completed_nodes) == 12:
-        badges_earned.append("Algebra Champion")
+    if len(completed_nodes) == 50:
+        badges_earned.append("Algebra Grand Master")
     
-    # Check for specific achievement badges
-    if all(f'alg_challenge_{i}' in completed_nodes for i in [1, 2, 3]):
-        badges_earned.append("Linear Specialist")
+    # Check for path completion badges
+    foundation_nodes = [f'alg_challenge_{i}' for i in range(1, 11)]
+    if all(node in completed_nodes for node in foundation_nodes):
+        badges_earned.append("Foundation Master")
     
-    if all(f'alg_challenge_{i}' in completed_nodes for i in [4, 5, 7]):
-        badges_earned.append("Polynomial Pro")
+    polynomial_nodes = [f'alg_challenge_{i}' for i in range(17, 29)]
+    if all(node in completed_nodes for node in polynomial_nodes):
+        badges_earned.append("Polynomial Prodigy")
+    
+    quadratic_nodes = [f'alg_challenge_{i}' for i in range(29, 39)]
+    if all(node in completed_nodes for node in quadratic_nodes):
+        badges_earned.append("Quadratic Champion")
+    
+    # Check for difficulty badges
+    hard_nodes = [node for node in completed_nodes if any(f'alg_challenge_{i}' == node for i in [*range(9, 16), *range(23, 29), *range(34, 39), *range(39, 51)])]
+    if len(hard_nodes) >= 10:
+        badges_earned.append("Challenge Conqueror")
+    
+    # Speed badges (you might want to track completion timestamps for these)
+    # For now, we'll just check if they completed first 10 nodes
+    first_ten = [f'alg_challenge_{i}' for i in range(1, 11)]
+    if all(node in completed_nodes for node in first_ten):
+        badges_earned.append("Quick Starter")
     
     # Award new badges
     for badge in badges_earned:

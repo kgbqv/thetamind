@@ -41,12 +41,17 @@ async function updateUserStats() {
 
 function getBadgeColor(badgeId) {
     const colors = {
-        "Algebra Novice": "#CD7F32", // Bronze
-        "Algebra Apprentice": "#C0C0C0", // Silver
-        "Algebra Master": "#FFD700", // Gold
-        "Algebra Champion": "#E5E4E2", // Platinum
-        "Linear Specialist": "#4CAF50", // Green
-        "Polynomial Pro": "#2196F3" // Blue
+        "Algebra Explorer": "#CD7F32", // Bronze
+        "Algebra Adventurer": "#C0C0C0", // Silver  
+        "Algebra Specialist": "#FFD700", // Gold
+        "Algebra Expert": "#E5E4E2", // Platinum
+        "Algebra Master": "#FF6B35", // Orange
+        "Algebra Grand Master": "#9B59B6", // Purple
+        "Foundation Master": "#4CAF50", // Green
+        "Polynomial Prodigy": "#2196F3", // Blue
+        "Quadratic Champion": "#E74C3C", // Red
+        "Challenge Conqueror": "#F39C12", // Orange
+        "Quick Starter": "#2ECC71" // Emerald
     };
     return colors[badgeId] || "#FFD700"; // Default to gold
 }

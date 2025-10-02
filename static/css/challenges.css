@@ -1,14 +1,30 @@
 /* Challenges Page Styles */
 .challenges-header {
-    text-align: center;
     margin-bottom: 2rem;
+}
+
+.header-top {
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.back-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.header-actions {
+    display: flex;
+    gap: 1rem;
 }
 
 .challenge-info {
     display: flex;
     justify-content: center;
     gap: 2rem;
-    margin-top: 1rem;
+    flex-wrap: wrap;
 }
 
 .info-item {
@@ -17,28 +33,55 @@
     gap: 0.5rem;
     font-weight: 600;
     color: var(--text-color);
+    background: var(--card-bg);
+    padding: 0.5rem 1rem;
+    border-radius: 25px;
+    border: 1px solid var(--border-color);
 }
 
 /* Challenge Map */
 .challenge-map-container {
     background: var(--card-bg);
-    border-radius: 12px;
+    border-radius: 16px;
     padding: 2rem;
     margin: 2rem 0;
     box-shadow: var(--shadow);
     border: 1px solid var(--border-color);
+    position: relative;
+    overflow: hidden;
+}
+
+.map-controls {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    z-index: 10;
+}
+
+.btn-sm {
+    padding: 0.5rem;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .map-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1rem;
     justify-items: center;
+    min-height: 400px;
+    transition: transform 0.3s ease;
 }
 
+/* Challenge Nodes */
 .challenge-node {
-    width: 100px;
-    height: 100px;
+    width: 90px;
+    height: 90px;
     border-radius: 50%;
     display: flex;
     flex-direction: column;
@@ -49,163 +92,88 @@
     position: relative;
     border: 3px solid;
     background: var(--bg-color);
+    font-size: 0.8rem;
 }
 
 .node-locked {
-    border-color: var(--border-color);
-    background: var(--card-bg);
+    border-color: #95a5a6;
+    background: linear-gradient(135deg, #bdc3c7, #95a5a6);
     cursor: not-allowed;
-    opacity: 0.6;
+    opacity: 0.7;
 }
 
 .node-unlocked {
-    border-color: var(--primary-color);
-    background: var(--bg-color);
+    border-color: #3498db;
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: white;
     cursor: pointer;
+    box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+}
+
+.node-unlocked:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
 }
 
 .node-completed {
-    border-color: var(--success-color);
-    background: var(--success-light);
+    border-color: #27ae60;
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+    color: white;
+    box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
 }
 
 .node-current {
-    border-color: var(--accent-color);
-    background: var(--accent-light);
-    box-shadow: 0 0 20px rgba(255, 193, 7, 0.3);
-    animation: pulse 2s infinite;
+    border-color: #f39c12;
+    background: linear-gradient(135deg, #f1c40f, #f39c12);
+    color: white;
+    box-shadow: 0 0 25px rgba(243, 156, 18, 0.5);
+    animation: pulse-gold 2s infinite;
 }
 
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
+@keyframes pulse-gold {
+    0% { transform: scale(1); box-shadow: 0 0 25px rgba(243, 156, 18, 0.5); }
+    50% { transform: scale(1.05); box-shadow: 0 0 35px rgba(243, 156, 18, 0.7); }
+    100% { transform: scale(1); box-shadow: 0 0 25px rgba(243, 156, 18, 0.5); }
 }
 
 .node-icon {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
+    font-size: 1.4rem;
+    margin-bottom: 0.3rem;
 }
 
 .node-title {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     font-weight: 600;
     text-align: center;
-    line-height: 1.2;
+    line-height: 1.1;
+    padding: 0 0.2rem;
 }
 
 .node-reward {
     position: absolute;
     top: -5px;
     right: -5px;
-    background: gold;
-    color: #000;
+    background: linear-gradient(135deg, #f1c40f, #f39c12);
+    color: #fff;
     border-radius: 50%;
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.7rem;
+    font-size: 0.6rem;
     font-weight: bold;
-}
-
-/* Challenge Modal */
-.challenge-modal-content {
-    max-width: 800px;
-}
-
-.challenge-reward {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: gold;
-    font-weight: 600;
-}
-
-.difficulty-badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.difficulty-easy {
-    background: var(--success-light);
-    color: var(--success-color);
-    border: 1px solid var(--success-color);
-}
-
-.difficulty-medium {
-    background: var(--warning-light);
-    color: var(--warning-color);
-    border: 1px solid var(--warning-color);
-}
-
-.difficulty-hard {
-    background: var(--error-light);
-    color: var(--error-color);
-    border: 1px solid var(--error-color);
-}
-
-.problem-statement {
-    background: var(--card-bg);
-    padding: 1.5rem;
-    border-radius: 8px;
-    margin: 1rem 0;
-    border-left: 4px solid var(--primary-color);
-}
-
-.hint-section {
-    margin: 1rem 0;
-}
-
-.hint-area {
-    background: var(--card-bg);
-    padding: 1rem;
-    border-radius: 8px;
-    margin-top: 0.5rem;
-    border-left: 4px solid var(--warning-color);
-}
-
-/* Success Modal */
-.success-modal-content {
-    text-align: center;
-    max-width: 500px;
-}
-
-.success-animation {
-    font-size: 4rem;
-    color: gold;
-    margin-bottom: 1rem;
-    animation: bounce 1s ease-in-out;
-}
-
-@keyframes bounce {
-    0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
-    40% {transform: translateY(-20px);}
-    60% {transform: translateY(-10px);}
-}
-
-.reward-display {
-    display: flex;
-    justify-content: center;
-    gap: 2rem;
-    margin: 1.5rem 0;
-}
-
-.reward-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-weight: 600;
-    color: gold;
+    border: 2px solid white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 
 /* Progress Bar */
 .progress-container {
     margin: 2rem 0;
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
 }
 
 .progress-label {
@@ -217,37 +185,516 @@
 
 .progress-bar {
     width: 100%;
-    height: 10px;
+    height: 12px;
     background: var(--border-color);
-    border-radius: 5px;
+    border-radius: 6px;
     overflow: hidden;
+    margin-bottom: 0.5rem;
 }
 
 .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
-    border-radius: 5px;
+    background: linear-gradient(90deg, #3498db, #2ecc71, #f1c40f);
+    border-radius: 6px;
     transition: width 0.5s ease;
     width: 0%;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+.progress-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal-content {
+    margin: 10% auto;
+}
+
+@keyframes slideIn {
+    from { 
+        opacity: 0;
+        transform: translateY(-50px);
+    }
+    to { 
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Specific modal sizes */
+.challenge-modal-content {
+    max-width: 800px;
+}
+
+.success-modal-content {
+    max-width: 500px;
+}
+
+.legend-modal-content {
+    max-width: 400px;
+}
+
+/* Ensure modals are properly centered on all screens */
+@media (max-height: 700px) {
+    .modal-content {
+        margin: 1% auto;
+        max-height: 98vh;
+        overflow-y: auto;
+    }
+}
+
+@media (max-width: 768px) {
+    .modal-content {
+        margin: 2% auto;
+        width: 95%;
+    }
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.challenge-reward {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255,255,255,0.2);
+    padding: 0.5rem 1rem;
+    border-radius: 25px;
+    font-weight: 600;
+}
+
+.close-btn {
+    color: #aaa;
+    position: absolute;
+    top: 15px;
+    right: 25px;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close-btn:hover {
+    opacity: 0.8;
+}
+
+.modal-body {
+    padding: 2rem;
+}
+
+.challenge-meta {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.difficulty-badge {
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.difficulty-easy {
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+    color: white;
+}
+
+.difficulty-medium {
+    background: linear-gradient(135deg, #f39c12, #e67e22);
+    color: white;
+}
+
+.difficulty-hard {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+}
+
+.difficulty-very-hard {
+    background: linear-gradient(135deg, #9b59b6, #8e44ad);
+    color: white;
+}
+
+.topic-tag, .node-id {
+    background: var(--card-bg);
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    border: 1px solid var(--border-color);
+}
+
+/* Loader */
+.loader-container {
+    text-align: center;
+    padding: 3rem;
+}
+
+.loader {
+    width: 50px;
+    height: 50px;
+    border: 4px solid var(--border-color);
+    border-top: 4px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Problem Section */
+.problem-section, .solution-section {
+    margin-bottom: 2rem;
+}
+
+.problem-section h3, .solution-section h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    color: var(--primary-color);
+}
+
+.problem-statement {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+    border-left: 4px solid var(--primary-color);
+    font-size: 1.1rem;
+    line-height: 1.6;
+}
+
+.solution-area {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+}
+
+.solution-area textarea {
+    width: 100%;
+    min-height: 150px;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-family: inherit;
+    resize: vertical;
+    transition: border-color 0.3s ease;
+}
+
+.solution-area textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.action-buttons {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+}
+
+.hint-area {
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-top: 0.5rem;
+    border-left: 4px solid #f39c12;
+    color: #856404;
+}
+
+.hint-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+/* Success Modal */
+.success-modal-content {
+    max-width: 500px;
+    text-align: center;
+    overflow: hidden;
+}
+
+.success-header {
+    padding: 2rem 2rem 1rem;
+}
+
+.success-animation {
+    font-size: 4rem;
+    color: gold;
+    margin-bottom: 1rem;
+    position: relative;
+    display: inline-block;
+}
+
+.confetti {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #f39c12;
+    border-radius: 50%;
+    animation: confetti-fall 3s infinite;
+}
+
+.confetti:nth-child(1) { left: 20%; animation-delay: 0s; }
+.confetti:nth-child(2) { left: 40%; animation-delay: 0.5s; }
+.confetti:nth-child(3) { left: 60%; animation-delay: 1s; }
+.confetti:nth-child(4) { left: 80%; animation-delay: 1.5s; }
+.confetti:nth-child(5) { right: 20%; animation-delay: 2s; }
+
+@keyframes confetti-fall {
+    0% { transform: translateY(-100px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(500px) rotate(360deg); opacity: 0; }
+}
+
+.success-header h2 {
+    color: var(--success-color);
+    margin-bottom: 0.5rem;
+}
+
+.reward-display {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin: 1.5rem 0;
+    padding: 0 2rem;
+}
+
+.reward-card {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 150px;
+}
+
+.reward-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.exp-reward {
+    background: linear-gradient(135deg, #f1c40f, #f39c12);
+    color: white;
+}
+
+.badge-reward {
+    background: linear-gradient(135deg, #9b59b6, #8e44ad);
+    color: white;
+}
+
+.reward-info {
+    text-align: left;
+}
+
+.reward-label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.reward-value {
+    display: block;
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+.success-actions {
+    padding: 0 2rem 2rem;
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+/* Legend Modal */
+.legend-modal-content {
+    max-width: 400px;
+}
+
+.legend-items, .difficulty-items {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.legend-item, .difficulty-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.node-preview {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 3px solid;
+}
+
+.difficulty-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+}
+
+.easy-dot { background: #27ae60; }
+.medium-dot { background: #f39c12; }
+.hard-dot { background: #e74c3c; }
+.very-hard-dot { background: #9b59b6; }
+
+.difficulty-legend {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+/* Feedback Area */
+.feedback-area {
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+    border-radius: 12px;
+}
+
+.success-message {
+    background: linear-gradient(135deg, #d4edda, #c3e6cb);
+    border: 1px solid #c3e6cb;
+    color: #155724;
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid #28a745;
+}
+
+.error-message {
+    background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid #dc3545;
+}
+
+.hint-message {
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid #ffc107;
+    margin-top: 1rem;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
     .map-grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 1rem;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.8rem;
     }
     
     .challenge-node {
-        width: 80px;
-        height: 80px;
+        width: 70px;
+        height: 70px;
     }
     
     .node-icon {
-        font-size: 1.2rem;
+        font-size: 1.1rem;
     }
     
     .node-title {
-        font-size: 0.7rem;
+        font-size: 0.6rem;
+    }
+    
+    .header-top {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .reward-display {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .reward-card {
+        width: 100%;
+        max-width: 200px;
+    }
+    
+    .modal-body {
+        padding: 1rem;
+    }
+    
+    .challenge-meta {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .map-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .challenge-node {
+        width: 60px;
+        height: 60px;
+    }
+    
+    .node-title {
+        font-size: 0.55rem;
     }
 }

@@ -368,7 +368,7 @@ section h2 {
 
 /* --- Tools Page: Topics Section --- */
 .topics-section {
-    background: var(--primary-bg);
+    background: var(--secondary-bg);
 }
 
 .topics-grid {
@@ -505,7 +505,7 @@ body.light-mode .topic-content h3 {
 
 /* --- AI Solver Section --- */
 .ai-solver-section {
-    background-color: var(--secondary-bg);
+    background-color: var(--primary-bg);
 }
 
 .solver-area {
