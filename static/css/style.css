@@ -421,17 +421,17 @@ section h2 {
     border-radius: 50%;
 }
 
-.algebra-icon {
+.body.dark-mode .algebra-icon {
     /* background: linear-gradient(45deg, #00f7ff, #008cff); */
     color: white;
 }
 
-.geometry-icon {
+.body.dark-mode .geometry-icon {
     /* background: linear-gradient(45deg, #ff00ff, #ff008c); */
     color: white;
 }
 
-.calculus-icon {
+.body.dark-mode .calculus-icon {
     /* background: linear-gradient(45deg, #f7ff00, #ff8c00); */
     color: white;
 }
@@ -963,4 +963,78 @@ body.light-mode .topic-content h3 {
     to {
         transform: translateX(0);
     }
+}
+
+
+.body.light-mode .algebra-icon {
+    color: black;
+}
+
+.body.light-mode .geometry-icon {
+    color: black;
+}
+
+.body.light-mode .calculus-icon {
+    color: black;
+}
+
+.gamification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--secondary-bg);
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    border: 1px solid var(--border-color);
+}
+
+.stats-display {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+.stat-item i {
+    margin-right: 0.5rem;
+    color: #ffd700; /* Gold color for coins */
+}
+
+.badge {
+    font-size: 1.5rem;
+    margin-left: 0.5rem;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.badge:hover {
+    opacity: 1;
+}
+
+.mode-selector {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.mode-btn {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--primary-text);
+    padding: 0.5rem 1rem;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.mode-btn.active,
+.mode-btn:hover {
+    background-color: var(--accent-color);
+    color: var(--primary-bg);
+    border-color: var(--accent-color);
 }

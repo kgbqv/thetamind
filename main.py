@@ -70,6 +70,13 @@ def db_init():
         oauth_id TEXT,
         coins INTEGER DEFAULT 0
     )""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS user_badges (
+        user_id INTEGER NOT NULL,
+        badge_id TEXT NOT NULL,
+        PRIMARY KEY (user_id, badge_id),
+        FOREIGN KEY (user_id) REFERENCES users (id)
+    )
+    """)
     cur.execute("""
     CREATE TABLE IF NOT EXISTS user_progress (
         user_id INTEGER NOT NULL,
@@ -78,6 +85,7 @@ def db_init():
         PRIMARY KEY (user_id, node_id),
         FOREIGN KEY (user_id) REFERENCES users (id)
     )""")
+    
     cur.execute("""
     CREATE TABLE IF NOT EXISTS quiz_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -292,13 +300,66 @@ async def tools_page(request: Request):
     user = get_current_user(request)
     return templates.TemplateResponse("tools.html", {"request": request, "user": user})
 
+TOPIC_WEIGHTS = {
+    "Foundations of Algebra": 1.0, "Solving Linear Equations": 1.2, "Inequalities": 1.3,
+    "Systems of Equations": 1.5, "Polynomials and Factoring": 1.6, "Quadratic Equations": 1.8,
+    "Functions and Graphing": 1.7, "Exponents and Radicals": 1.4
+}
+DIFFICULTY_MULTIPLIERS = {"Easy": 1, "Medium": 3, "Hard": 5, "Very Hard": 10}
 @app.get("/algebra", response_class=HTMLResponse)
 async def algebra_page(request: Request):
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/login")
     return templates.TemplateResponse("algebra.html", {"request": request, "user": user})
+@app.get("/algebra-challenges", response_class=HTMLResponse)
+async def algebra_challenges_page(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse("algebra-challenges.html", {"request": request, "user": user})
 
+@app.get("/api/get_challenge_progress")
+async def get_challenge_progress(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(content={"error": "Authentication required"}, status_code=401)
+
+    conn = sqlite3.connect(DB)
+    cur = conn.cursor()
+
+    # Get completed nodes
+    cur.execute("SELECT node_id FROM user_progress WHERE user_id = ?", (user["id"],))
+    completed_nodes = [row[0] for row in cur.fetchall()]
+
+    # Define challenge nodes and their prerequisites
+    challenge_nodes = {
+        'alg_challenge_1': [],
+        'alg_challenge_2': ['alg_challenge_1'],
+        'alg_challenge_3': ['alg_challenge_2'],
+        'alg_challenge_4': ['alg_challenge_2'],
+        'alg_challenge_5': ['alg_challenge_4'],
+        'alg_challenge_6': ['alg_challenge_5'],
+        'alg_challenge_7': ['alg_challenge_5', 'alg_challenge_6'],
+        'alg_challenge_8': ['alg_challenge_6'],
+        'alg_challenge_9': ['alg_challenge_3', 'alg_challenge_4'],
+        'alg_challenge_10': ['alg_challenge_2'],
+        'alg_challenge_11': ['alg_challenge_7', 'alg_challenge_8'],
+        'alg_challenge_12': ['alg_challenge_11']
+    }
+
+    # Calculate unlocked nodes
+    unlocked_nodes = []
+    for node_id, prerequisites in challenge_nodes.items():
+        if all(prereq in completed_nodes for prereq in prerequisites) or node_id == 'alg_challenge_1':
+            unlocked_nodes.append(node_id)
+
+    conn.close()
+
+    return JSONResponse(content={
+        "completed_nodes": completed_nodes,
+        "unlocked_nodes": unlocked_nodes
+    })
 @app.get("/documentation", response_class=HTMLResponse)
 async def route_documentation(request: Request):
     user = get_current_user(request)
@@ -355,6 +416,49 @@ async def generate_quiz(request: Request, topic: str = Form(...), difficulty: st
 @app.post("/api/evaluate_answer")
 async def evaluate_answer(request: Request, question: str = Form(...), user_solution: str = Form(...), correct_solution: str = Form(...), topic: str = Form(...), difficulty: str = Form(...)):
     user = get_current_user(request)
+    if not user: return JSONResponse(content={"error": "Authentication required"}, status_code=401)
+
+    prompt = f"""As an expert AI Math Tutor, evaluate a student's work.
+    Original Question: "{question}"
+    Student's Solution: "{user_solution}"
+    Correct Solution: "{correct_solution}"
+    Analyze the student's process. Identify misconceptions or errors.
+    Provide your evaluation as a JSON object with keys: "is_correct" (boolean), "feedback" (constructive paragraph), "smarter_way" (alternative method or encouragement)."""
+    ai_response = await ai_q(prompt)
+    ai_response = clean_response(ai_response)
+
+    try:
+        evaluation = json.loads(ai_response)
+        is_correct = evaluation.get("is_correct", False)
+        coins_earned = 0
+        if is_correct:
+            base_coins = TOPIC_WEIGHTS.get(topic, 1.0)
+            multiplier = DIFFICULTY_MULTIPLIERS.get(difficulty, 1)
+            coins_earned = int(base_coins * multiplier)
+
+        conn = sqlite3.connect(DB)
+        cur = conn.cursor()
+        cur.execute("INSERT INTO quiz_history (user_id, topic, difficulty, question, user_solution, is_correct) VALUES (?, ?, ?, ?, ?, ?)",
+                    (user["id"], topic, difficulty, question, user_solution, is_correct))
+        if coins_earned > 0:
+            cur.execute("UPDATE users SET coins = coins + ? WHERE id = ?", (coins_earned, user["id"]))
+        conn.commit()
+        conn.close()
+
+        evaluation["coins_earned"] = coins_earned
+        return JSONResponse(content=evaluation)
+    except (json.JSONDecodeError, TypeError):
+        return JSONResponse(content={"error": "Failed to get a valid evaluation from AI."}, status_code=500)
+
+@app.post("/api/evaluate_challenge")
+async def evaluate_challenge(request: Request, 
+                           question: str = Form(...), 
+                           user_solution: str = Form(...), 
+                           correct_solution: str = Form(...),
+                           topic: str = Form(...),
+                           difficulty: str = Form(...),
+                           node_id: str = Form(...)):
+    user = get_current_user(request)
     if not user:
         return JSONResponse(content={"error": "Authentication required"}, status_code=401)
 
@@ -371,31 +475,144 @@ async def evaluate_answer(request: Request, question: str = Form(...), user_solu
         evaluation = json.loads(ai_response)
         is_correct = evaluation.get("is_correct", False)
 
-        if is_correct:
-            try:
-                if difficulty == "Easy":
-                    update_user_coins(user["username"], 5)
-                elif difficulty == "Medium":
-                    update_user_coins(user["username"], 10)
-                elif difficulty == "Hard":
-                    update_user_coins(user["username"], 20)
-            except ValueError as ve:
-                pass
+        coins_earned = 0
+        badge_earned = None
 
         # Save to database
         conn = sqlite3.connect(DB)
         cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO quiz_history (user_id, topic, difficulty, question, user_solution, is_correct)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (user["id"], topic, difficulty, question, user_solution, is_correct))
+        if is_correct:
+            # Calculate coins earned
+            base_coins = TOPIC_WEIGHTS.get(topic, 1.0)
+            multiplier = DIFFICULTY_MULTIPLIERS.get(difficulty, 1)
+            coins_earned = int(base_coins * multiplier)
+
+            # Mark node as completed if not already
+            try:
+                cur.execute("INSERT INTO user_progress (user_id, node_id) VALUES (?, ?)", 
+                           (user["id"], node_id))
+
+                # Update coins
+                cur.execute("UPDATE users SET coins = coins + ? WHERE id = ?", 
+                           (coins_earned, user["id"]))
+
+                # Check for badge achievements
+                badge_earned = check_badge_achievements(cur, user["id"])
+
+            except sqlite3.IntegrityError:
+                # Node already completed
+                pass
+
+        # Log the attempt
+        cur.execute("INSERT INTO quiz_history (user_id, topic, difficulty, question, user_solution, is_correct) VALUES (?, ?, ?, ?, ?, ?)",
+                   (user["id"], topic, difficulty, question, user_solution, is_correct))
+
         conn.commit()
         conn.close()
+
+        evaluation["coins_earned"] = coins_earned
+        if badge_earned:
+            evaluation["badge_earned"] = badge_earned
 
         return JSONResponse(content=evaluation)
     except (json.JSONDecodeError, TypeError):
         return JSONResponse(content={"error": "Failed to get a valid evaluation from AI."}, status_code=500)
+@app.post("/api/buy_hint")
+async def buy_hint(request: Request, node_id: str = Form(...), coins: int = Form(...)):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(content={"error": "Authentication required"}, status_code=401)
 
+    conn = sqlite3.connect(DB)
+    cur = conn.cursor()
+
+    # Check user has enough coins
+    cur.execute("SELECT coins FROM users WHERE id = ?", (user["id"],))
+    user_coins = cur.fetchone()[0]
+
+    if user_coins < coins:
+        conn.close()
+        return JSONResponse(content={"error": "Not enough coins"}, status_code=400)
+
+    # Deduct coins
+    cur.execute("UPDATE users SET coins = coins - ? WHERE id = ?", (coins, user["id"]))
+
+    # Generate hint based on node
+    hint = generate_hint_for_node(node_id)
+
+    conn.commit()
+    conn.close()
+
+    return JSONResponse(content={"success": True, "hint": hint})
+
+def generate_hint_for_node(node_id):
+    hints = {
+        'alg_challenge_1': "Remember PEMDAS: Parentheses, Exponents, Multiplication/Division, Addition/Subtraction",
+        'alg_challenge_2': "Isolate the variable by performing inverse operations on both sides",
+        'alg_challenge_3': "When multiplying or dividing by a negative number, flip the inequality sign",
+        'alg_challenge_4': "Combine like terms before performing operations",
+        'alg_challenge_5': "Look for common factors first, then try grouping or special formulas",
+        'alg_challenge_6': "The quadratic formula is x = [-b ± √(b²-4ac)] / 2a",
+        'alg_challenge_7': "Check for difference of squares or perfect square trinomials",
+        'alg_challenge_8': "The discriminant (b²-4ac) tells you about the nature of the roots",
+        'alg_challenge_9': "Try substitution or elimination method for systems of equations",
+        'alg_challenge_10': "Define variables for unknown quantities and set up equations from the problem text",
+        'alg_challenge_11': "This combines multiple concepts - break it down step by step",
+        'alg_challenge_12': "You've made it this far! Use all the techniques you've learned systematically"
+    }
+    return hints.get(node_id, "Think about the key concepts you've learned for this topic.")
+
+def check_badge_achievements(cur, user_id):
+    """Check if user has earned any new badges based on progress"""
+
+    # Get user's completed nodes
+    cur.execute("SELECT node_id FROM user_progress WHERE user_id = ?", (user_id,))
+    completed_nodes = [row[0] for row in cur.fetchall()]
+
+    badges_earned = []
+
+    # Check for completion badges
+    if len(completed_nodes) >= 3:
+        badges_earned.append("Algebra Novice")
+    if len(completed_nodes) >= 6:
+        badges_earned.append("Algebra Apprentice")
+    if len(completed_nodes) >= 9:
+        badges_earned.append("Algebra Master")
+    if len(completed_nodes) == 12:
+        badges_earned.append("Algebra Champion")
+
+    # Check for specific achievement badges
+    if all(f'alg_challenge_{i}' in completed_nodes for i in [1, 2, 3]):
+        badges_earned.append("Linear Specialist")
+
+    if all(f'alg_challenge_{i}' in completed_nodes for i in [4, 5, 7]):
+        badges_earned.append("Polynomial Pro")
+
+    # Award new badges
+    for badge in badges_earned:
+        try:
+            cur.execute("INSERT INTO user_badges (user_id, badge_id) VALUES (?, ?)", 
+                       (user_id, badge))
+        except sqlite3.IntegrityError:
+            # Badge already awarded
+            pass
+
+    return badges_earned[0] if badges_earned else None
+
+@app.get("/api/get_user_stats")
+async def get_user_stats(request: Request):
+    user = get_current_user(request)
+    if not user: return JSONResponse(content={"error": "Authentication required"}, status_code=401)
+
+    conn = sqlite3.connect(DB)
+    # Fetch coins from the user row directly
+    coins = conn.execute("SELECT coins FROM users WHERE id = ?", (user['id'],)).fetchone()[0]
+    # Fetch badges
+    badges_raw = conn.execute("SELECT badge_id FROM user_badges WHERE user_id = ?", (user['id'],)).fetchall()
+    conn.close()
+
+    badges = [b[0] for b in badges_raw]
+    return JSONResponse(content={"coins": coins, "badges": badges})
 @app.get("/coming_soon", response_class=HTMLResponse)
 async def coming_soon_page(request: Request):
     user = get_current_user(request)
