@@ -47,6 +47,18 @@
                     <div class="dashboard-card">
                         <h3>Overall Accuracy</h3>
                         <canvas id="overallAccuracyChart"></canvas>
+                    </div> 
+                    <!-- Add this to your dashboard.html in the dashboard-grid section -->
+                    <div class="dashboard-card">
+                        <h3>Coin Balance</h3>
+                        <div class="coin-display">
+                            <i class="fas fa-coins" style="color: #FFD700; font-size: 2em;"></i>
+                            <span id="coin-balance" style="font-size: 1.5em; margin-left: 10px;">Loading...</span>
+                        </div>
+                        <p>Earn coins by answering questions correctly!</p>
+                        <div class="coin-stats">
+                            <p>Easy: 5 coins | Medium: 10 coins | Hard: 20 coins</p>
+                        </div>
                     </div>
                 </div>
 
@@ -63,5 +75,20 @@
     </footer>
     <script src="/static/js/dashboard.js"></script>
     <script src="/static/js/script.js"></script>
+    <script>
+        async function loadCoinBalance() {
+            try {
+                const response = await fetch('/api/coin_balance');
+                const data = await response.json();
+                if (data.coin_balance !== undefined) {
+                    document.getElementById('coin-balance').textContent = data.coin_balance;
+                }
+            } catch (error) {
+                console.error('Error loading coin balance:', error);
+            }
+        }
+        loadCoinBalance();
+        setInterval(loadCoinBalance, 30000); // Refresh every 60 seconds
+    </script>
 </body>
 </html>

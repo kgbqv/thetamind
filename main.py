@@ -67,7 +67,8 @@ def db_init():
         email TEXT UNIQUE NOT NULL,
         hashed_password TEXT,
         oauth_provider TEXT,
-        oauth_id TEXT
+        oauth_id TEXT,
+        coins INTEGER DEFAULT 0
     )""")
     cur.execute("""
     CREATE TABLE IF NOT EXISTS user_progress (
@@ -122,6 +123,42 @@ def get_password_hash(password):
 def clean_response(response: str) -> str:
     return response.strip().strip('```json').strip('```')
 
+def get_coins(username: str):
+    conn = sqlite3.connect(DB)
+    cur = conn.cursor()
+    cur.execute("SELECT coins FROM users WHERE username = ?", (username,))
+    result = cur.fetchone()
+    conn.close()
+    return result[0] if result else 0
+
+def update_user_coins(username: str, coins_delta: int, allow_negative: bool = False) -> int:
+    """
+    Update user's coin balance and return the new balance
+    coins_delta can be positive (add coins) or negative (spend coins)
+    """
+    # Get current balance first
+    current_balance = get_coins(username)
+    new_balance = current_balance + coins_delta
+
+    if new_balance < 0 and not allow_negative:
+        raise ValueError(f"Insufficient coins. Current: {current_balance}, Attempted: {coins_delta}")
+    
+    # Update the database
+    conn = sqlite3.connect(DB)
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE users 
+        SET coins = ? 
+        WHERE username = ?
+    """, (new_balance, username))
+    conn.commit()
+    conn.close()
+    
+    return new_balance
+
+
+# ----------AI INTEGRATION----------
+
 async def query_ai(prompt: str) -> str:
     """Helper function to call the appropriate AI provider"""
     if IS_AI_CONFIGURED:
@@ -146,7 +183,6 @@ async def query_ai(prompt: str) -> str:
             except Exception as e:
                 return f"AI_ERR: {e}"
 
-# --- AI Interaction ---
 async def ai_q(prompt: str) -> str:
     """Helper function to call the appropriate AI provider"""
     if IS_AI_CONFIGURED:
@@ -292,6 +328,15 @@ async def about_page(request: Request):
     return templates.TemplateResponse("about.html", {"request": request, "user": user})
 
 # --- API Routes ---
+@app.get("/api/coin_balance")
+async def get_user_coin_balance(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(content={"error": "Authentication required"}, status_code=401)
+    
+    balance = get_coins(user["username"])
+    return JSONResponse(content={"coin_balance": balance})
+
 @app.post("/api/generate_quiz")
 async def generate_quiz(request: Request, topic: str = Form(...), difficulty: str = Form(...)):
     user = get_current_user(request)
@@ -325,6 +370,17 @@ async def evaluate_answer(request: Request, question: str = Form(...), user_solu
     try:
         evaluation = json.loads(ai_response)
         is_correct = evaluation.get("is_correct", False)
+
+        if is_correct:
+            try:
+                if difficulty == "Easy":
+                    update_user_coins(user["username"], 5)
+                elif difficulty == "Medium":
+                    update_user_coins(user["username"], 10)
+                elif difficulty == "Hard":
+                    update_user_coins(user["username"], 20)
+            except ValueError as ve:
+                pass
 
         # Save to database
         conn = sqlite3.connect(DB)
