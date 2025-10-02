@@ -165,6 +165,11 @@
     <script src="/static/js/algebra.js"></script>
     <script src="/static/js/gamification.js"></script>
     <script src="/static/js/script.js"></script>
+    <script>
+        document.querySelector('.mode-btn[data-mode="challenge"]').addEventListener('click', () => {
+            window.location.href = '/algebra_challenges';
+        });
+    </script>
 </body>
 </html>
 
