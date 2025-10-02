@@ -67,7 +67,8 @@ def db_init():
         email TEXT UNIQUE NOT NULL,
         hashed_password TEXT,
         oauth_provider TEXT,
-        oauth_id TEXT
+        oauth_id TEXT,
+        coins INTEGER DEFAULT 0
     )""")
     cur.execute("""
     CREATE TABLE IF NOT EXISTS user_badges (
@@ -311,12 +312,12 @@ async def algebra_page(request: Request):
     if not user:
         return RedirectResponse(url="/login")
     return templates.TemplateResponse("algebra.html", {"request": request, "user": user})
-@app.get("/algebra-challenges", response_class=HTMLResponse)
+@app.get("/algebra_challenges", response_class=HTMLResponse)
 async def algebra_challenges_page(request: Request):
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/login")
-    return templates.TemplateResponse("algebra-challenges.html", {"request": request, "user": user})
+    return templates.TemplateResponse("algebra_challenges.html", {"request": request, "user": user})
 
 @app.get("/api/get_challenge_progress")
 async def get_challenge_progress(request: Request):
@@ -445,63 +446,16 @@ async def get_challenge_progress(request: Request):
         cur = conn.cursor()
         cur.execute("INSERT INTO quiz_history (user_id, topic, difficulty, question, user_solution, is_correct) VALUES (?, ?, ?, ?, ?, ?)",
                     (user["id"], topic, difficulty, question, user_solution, is_correct))
-        if coins_earned > 0:
-            cur.execute("UPDATE users SET coins = coins + ? WHERE id = ?", (coins_earned, user["id"]))
         conn.commit()
         conn.close()
+        if coins_earned > 0:
+            update_user_coins(user["username"], coins_earned)
+        
 
         evaluation["coins_earned"] = coins_earned
         return JSONResponse(content=evaluation)
     except (json.JSONDecodeError, TypeError):
         return JSONResponse(content={"error": "Failed to get a valid evaluation from AI."}, status_code=500)
-
-@app.post("/api/evaluate_challenge")
-async def evaluate_challenge(request: Request, 
-                           question: str = Form(...), 
-                           user_solution: str = Form(...), 
-                           correct_solution: str = Form(...),
-                           topic: str = Form(...),
-                           difficulty: str = Form(...),
-                           node_id: str = Form(...)):
-    user = get_current_user(request)
-    if not user:
-        return JSONResponse(content={"error": "Authentication required"}, status_code=401)
-    
-    conn = sqlite3.connect(DB)
-    cur = conn.cursor()
-    
-    # Get completed nodes
-    cur.execute("SELECT node_id FROM user_progress WHERE user_id = ?", (user["id"],))
-    completed_nodes = [row[0] for row in cur.fetchall()]
-    
-    # Define challenge nodes and their prerequisites
-    challenge_nodes = {
-        'alg_challenge_1': [],
-        'alg_challenge_2': ['alg_challenge_1'],
-        'alg_challenge_3': ['alg_challenge_2'],
-        'alg_challenge_4': ['alg_challenge_2'],
-        'alg_challenge_5': ['alg_challenge_4'],
-        'alg_challenge_6': ['alg_challenge_5'],
-        'alg_challenge_7': ['alg_challenge_5', 'alg_challenge_6'],
-        'alg_challenge_8': ['alg_challenge_6'],
-        'alg_challenge_9': ['alg_challenge_3', 'alg_challenge_4'],
-        'alg_challenge_10': ['alg_challenge_2'],
-        'alg_challenge_11': ['alg_challenge_7', 'alg_challenge_8'],
-        'alg_challenge_12': ['alg_challenge_11']
-    }
-    
-    # Calculate unlocked nodes
-    unlocked_nodes = []
-    for node_id, prerequisites in challenge_nodes.items():
-        if all(prereq in completed_nodes for prereq in prerequisites) or node_id == 'alg_challenge_1':
-            unlocked_nodes.append(node_id)
-    
-    conn.close()
-    
-    return JSONResponse(content={
-        "completed_nodes": completed_nodes,
-        "unlocked_nodes": unlocked_nodes
-    })
 
 @app.post("/api/evaluate_answer")
 async def evaluate_answer(request: Request, question: str = Form(...), user_solution: str = Form(...), correct_solution: str = Form(...), topic: str = Form(...), difficulty: str = Form(...)):
@@ -540,8 +494,7 @@ async def evaluate_answer(request: Request, question: str = Form(...), user_solu
                            (user["id"], node_id))
 
                 # Update coins
-                cur.execute("UPDATE users SET coins = coins + ? WHERE id = ?", 
-                           (coins_earned, user["id"]))
+                update_user_coins(user["username"], coins_earned)
 
                 # Check for badge achievements
                 badge_earned = check_badge_achievements(cur, user["id"])
@@ -566,25 +519,16 @@ async def buy_hint(request: Request, node_id: str = Form(...), coins: int = Form
     if not user:
         return JSONResponse(content={"error": "Authentication required"}, status_code=401)
 
-    conn = sqlite3.connect(DB)
-    cur = conn.cursor()
-
-    # Check user has enough coins
-    cur.execute("SELECT coins FROM users WHERE id = ?", (user["id"],))
-    user_coins = cur.fetchone()[0]
+    user_coins = get_coins(user["username"])
 
     if user_coins < coins:
-        conn.close()
         return JSONResponse(content={"error": "Not enough coins"}, status_code=400)
 
     # Deduct coins
-    cur.execute("UPDATE users SET coins = coins - ? WHERE id = ?", (coins, user["id"]))
+    update_user_coins(user["username"], -coins)
 
     # Generate hint based on node
     hint = generate_hint_for_node(node_id)
-
-    conn.commit()
-    conn.close()
 
     return JSONResponse(content={"success": True, "hint": hint})
 
@@ -649,7 +593,7 @@ async def get_user_stats(request: Request):
 
     conn = sqlite3.connect(DB)
     # Fetch coins from the user row directly
-    coins = conn.execute("SELECT coins FROM users WHERE id = ?", (user['id'],)).fetchone()[0]
+    coins = get_coins(user["username"])
     # Fetch badges
     badges_raw = conn.execute("SELECT badge_id FROM user_badges WHERE user_id = ?", (user['id'],)).fetchall()
     conn.close()
@@ -665,6 +609,7 @@ async def evaluate_challenge(request: Request,
                            difficulty: str = Form(...),
                            node_id: str = Form(...)):
     user = get_current_user(request)
+    print("what")
     if not user:
         return JSONResponse(content={"error": "Authentication required"}, status_code=401)
 
@@ -678,7 +623,7 @@ async def evaluate_challenge(request: Request,
     
     ai_response = await ai_q(prompt)
     ai_response = clean_response(ai_response)
-    
+    print(f"Received AI response: {ai_response}")
     try:
         evaluation = json.loads(ai_response)
         is_correct = evaluation.get("is_correct", False)
@@ -700,8 +645,7 @@ async def evaluate_challenge(request: Request,
                            (user["id"], node_id))
                 
                 # Update coins
-                cur.execute("UPDATE users SET coins = coins + ? WHERE id = ?", 
-                           (coins_earned, user["id"]))
+                update_user_coins(user["username"], coins_earned)
                 
                 # Check for badge achievements
                 badge_earned = check_badge_achievements(cur, user["id"])
@@ -736,15 +680,14 @@ async def buy_hint(request: Request, node_id: str = Form(...), coins: int = Form
     cur = conn.cursor()
     
     # Check user has enough coins
-    cur.execute("SELECT coins FROM users WHERE id = ?", (user["id"],))
-    user_coins = cur.fetchone()[0]
+    user_coins = get_coins(user["username"])
     
     if user_coins < coins:
         conn.close()
         return JSONResponse(content={"error": "Not enough coins"}, status_code=400)
     
     # Deduct coins
-    cur.execute("UPDATE users SET coins = coins - ? WHERE id = ?", (coins, user["id"]))
+    update_user_coins(user["username"], -coins)
     
     # Generate hint based on node
     hint = generate_hint_for_node(node_id)
@@ -815,7 +758,7 @@ async def get_user_stats(request: Request):
     
     conn = sqlite3.connect(DB)
     # Fetch coins from the user row directly
-    coins = conn.execute("SELECT coins FROM users WHERE id = ?", (user['id'],)).fetchone()[0]
+    coins = get_coins(user["username"])
     # Fetch badges
     badges_raw = conn.execute("SELECT badge_id FROM user_badges WHERE user_id = ?", (user['id'],)).fetchall()
     conn.close()

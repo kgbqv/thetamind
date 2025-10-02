@@ -1,3 +1,11 @@
+function md2html(md) {
+    if (!md) return '';
+    const raw = marked.parse(md);
+    const clean = DOMPurify.sanitize(raw);
+    console.log(raw);
+    console.log(md);
+    return clean;
+}
 class ChallengeGame {
     constructor() {
         this.nodes = [];
@@ -160,7 +168,7 @@ class ChallengeGame {
 
             if (response.ok) {
                 const quizData = await response.json();
-                document.getElementById('problem-text').textContent = quizData.question;
+                document.getElementById('problem-text').innerHTML = md2html(quizData.question);
                 this.currentProblem = quizData;
                 
                 loader.style.display = 'none';
@@ -204,12 +212,12 @@ class ChallengeGame {
             feedbackArea.style.display = 'block';
             
             if (result.is_correct) {
-                feedbackArea.innerHTML = `<div class="success-message">${result.feedback}</div>`;
+                feedbackArea.innerHTML = `<div class="success-message">${md2html(result.feedback)}</div>`;
                 this.showSuccessModal(result.coins_earned, result.badge_earned);
             } else {
                 feedbackArea.innerHTML = `
-                    <div class="error-message">${result.feedback}</div>
-                    ${result.smarter_way ? `<div class="hint-message">${result.smarter_way}</div>` : ''}
+                    <div class="error-message">${md2html(result.feedback)}</div>
+                    ${md2html(result.smarter_way) ? `<div class="hint-message">${md2html(result.smarter_way)}</div>` : ''}
                 `;
             }
         } catch (error) {
@@ -239,7 +247,7 @@ class ChallengeGame {
 
             if (result.success) {
                 hintArea.style.display = 'block';
-                hintArea.innerHTML = `<strong>Hint:</strong> ${result.hint}`;
+                hintArea.innerHTML = `<strong>Hint:</strong> ${md2html(result.hint)}`;
                 hintBtn.disabled = true;
                 hintBtn.innerHTML = '<i class="fas fa-check"></i> Hint Purchased';
                 
