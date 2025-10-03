@@ -9,21 +9,29 @@
 </head>
 <body>
     <nav class="navbar">
-         <div class="container">
+        <div class="nav-container">
             <a href="/" class="logo">θ-Mind</a>
             <ul class="nav-links">
                 <li><a href="/">Home</a></li>
                 <li><a href="/tools">Tools</a></li>
                 <li><a href="/documentation" class="active">Documentation</a></li>
                 <li><a href="/about">About</a></li>
-                 {% if user %}
+                {% if user %}
                     <li><a href="/dashboard">Dashboard</a></li>
                     <li><a href="/logout">Logout</a></li>
                 {% else %}
                     <li><a href="/login">Login</a></li>
+                    <li><a href="/register">Register</a></li>
                 {% endif %}
             </ul>
-            <button id="theme-toggle" class="theme-toggle-btn"><i class="fas fa-sun"></i><i class="fas fa-moon"></i></button>
+            <div class="nav-right-cluster">
+                <button id="theme-toggle" class="theme-toggle-btn"><i class="fas fa-sun"></i><i class="fas fa-moon"></i></button>
+                <div class="nav-toggle">
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                </div>
+            </div>
         </div>
     </nav>
 

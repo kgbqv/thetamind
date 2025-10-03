@@ -49,9 +49,16 @@ body {
 }
 
 .container {
+    width: 90%;
     max-width: 1200px;
     margin: 0 auto;
-    padding: 0 20px;
+}
+
+.nav-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 0 20px;
 }
 
 .navbar {
@@ -84,9 +91,16 @@ body.light-mode .navbar {
 }
 
 .navbar .nav-links {
-    list-style: none;
-    display: flex;
-    align-items: center;
+    display: none; /* Hidden on mobile */
+    flex-direction: column;
+    position: absolute;
+    top: 65px; /* Adjust based on navbar height */
+    left: 0;
+    background-color: var(--secondary-bg);
+    width: 100%;
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem 0;
+    list-style-type: none;
 }
 
 .navbar .nav-links li {
@@ -102,10 +116,95 @@ body.light-mode .navbar {
     border-bottom: 2px solid transparent;
 }
 
+.navbar .nav-links.nav-active {
+    display: flex; /* Shown when hamburger is clicked */
+}
+
+.navbar .nav-links li {
+    list-style: none;
+    text-align: center;
+    padding: 1rem 0;
+}
+
+.navbar .nav-links a {
+    color: var(--primary-text);
+    text-decoration: none;
+    font-size: 1.1rem;
+    transition: color 0.3s;
+}
+.navbar .nav-links a:hover, .navbar .nav-links a.active {
+    color: var(--accent-color);
+}
+
+.navbar .nav-right-cluster {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.navbar .nav-toggle { /* Hamburger Icon */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    width: 25px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.navbar .nav-toggle .bar {
+    width: 100%;
+    height: 2px;
+    background-color: var(--primary-text);
+    transition: all 0.3s ease-in-out;
+}
+
 .navbar .nav-links a:hover,
 .navbar .nav-links a.active {
     color: var(--accent-color);
     border-bottom-color: var(--accent-color);
+}
+
+@media (min-width: 768px) {
+    .navbar .nav-toggle {
+        display: none; /* Hide hamburger */
+    }
+
+    .navbar .nav-links {
+        display: flex; /* Show links */
+        flex-direction: row;
+        position: static;
+        width: auto;
+        background-color: transparent;
+        border-bottom: none;
+        padding: 0;
+        gap: 1.5rem;
+    }
+    
+    .navbar .nav-links li {
+        padding: 0;
+    }
+
+    .docs-wrapper {
+        flex-direction: row; /* Side-by-side layout */
+        gap: 2rem;
+    }
+
+    .docs-sidebar {
+        width: 250px;
+        flex-shrink: 0;
+        border-right: 1px solid var(--border-color);
+        border-bottom: none;
+        height: calc(100vh - 100px); /* Adjust based on nav height */
+        position: sticky;
+        top: 85px;
+        overflow-y: auto;
+        padding-bottom: 0;
+        margin-bottom: 0;
+    }
+
+    .docs-content {
+        flex-grow: 1;
+    }
 }
 
 .theme-toggle-btn {
