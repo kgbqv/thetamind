@@ -1115,3 +1115,71 @@ body.light-mode .topic-content h3 {
     border-color: var(--accent-color);
 }
 
+
+/* Additional utility styles */
+.loader-small {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border-color);
+    border-top: 2px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    margin-right: 0.5rem;
+}
+
+.error-message {
+    background: var(--error-light);
+    color: var(--error-color);
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid var(--error-color);
+}
+
+.success-message {
+    background: var(--success-light);
+    color: var(--success-color);
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid var(--success-color);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .container {
+        padding: 0 1rem;
+    }
+    
+    .nav-links {
+        flex-direction: column;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--card-bg);
+        display: none;
+    }
+    
+    .nav-links.active {
+        display: flex;
+    }
+}
+
+/* Dark mode improvements */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+}

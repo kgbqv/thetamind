@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Math Chat - ThetaMind</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/chat.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+    <!-- MathJax for LaTeX rendering -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="logo">θ-Mind</a>
+            <ul class="nav-links">
+                <li><a href="/">Home</a></li>
+                <li><a href="/tools">Tools</a></li>
+                <li><a href="/chat" class="active">AI Chat</a></li>
+                <li><a href="/documentation">Documentation</a></li>
+                <li><a href="/about">About</a></li>
+                {% if user %}
+                    <li><a href="/dashboard">Dashboard</a></li>
+                    <li><a href="/logout">Logout</a></li>
+                {% else %}
+                    <li><a href="/login">Login</a></li>
+                    <li><a href="/register">Register</a></li>
+                {% endif %}
+            </ul>
+            <div class="nav-right-cluster">
+                <button id="theme-toggle" class="theme-toggle-btn"><i class="fas fa-sun"></i><i class="fas fa-moon"></i></button>
+                <div class="nav-toggle">
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="page-content">
+        <div class="chat-container">
+            <!-- Sidebar -->
+            <div class="chat-sidebar">
+                <div class="sidebar-header">
+                    <button id="new-chat-btn" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> New Chat
+                    </button>
+                </div>
+                <div class="conversations-list" id="conversations-list">
+                    <!-- Conversations will be loaded here -->
+                </div>
+                <div class="sidebar-footer">
+                    <div class="user-info">
+                        <i class="fas fa-user"></i>
+                        <span>{{ user.username if user else 'Guest' }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Chat Area -->
+            <div class="chat-main">
+                <div class="chat-header">
+                    <div class="header-left">
+                        <button id="sidebar-toggle" class="btn btn-outline btn-sm">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                        <h3 id="current-chat-title">New Chat</h3>
+                    </div>
+                    <div class="header-actions">
+                        <button id="clear-chat" class="btn btn-outline btn-sm" title="Clear Chat">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        <button id="export-chat" class="btn btn-outline btn-sm" title="Export Chat">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="chat-messages" id="chat-messages">
+                    <div class="welcome-message">
+                        <div class="welcome-icon">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <h1>Hello! I'm Your AI Math Tutor</h1>
+                        <p class="welcome-subtitle">I can help you with any math problem. Type your question or upload an image!</p>
+                        
+                        <div class="features-grid">
+                            <div class="feature-item">
+                                <i class="fas fa-camera"></i>
+                                <h4>Image to Text</h4>
+                                <p>Upload images of math problems</p>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-code"></i>
+                                <h4>LaTeX Support</h4>
+                                <p>Beautiful math rendering</p>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-list-ol"></i>
+                                <h4>Step-by-Step</h4>
+                                <p>Detailed explanations</p>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-infinity"></i>
+                                <h4>All Math Topics</h4>
+                                <p>From algebra to calculus</p>
+                            </div>
+                        </div>
+
+                        <div class="example-section">
+                            <h3>Try These Examples:</h3>
+                            <div class="example-questions">
+                                <div class="example-chip" data-question="Solve the quadratic equation: x² - 5x + 6 = 0">
+                                    Solve: x² - 5x + 6 = 0
+                                </div>
+                                <div class="example-chip" data-question="Explain the Pythagorean theorem with an example">
+                                    Pythagorean theorem
+                                </div>
+                                <div class="example-chip" data-question="How do I find the derivative of f(x) = 3x² + 2x - 1?">
+                                    Derivative of 3x² + 2x - 1
+                                </div>
+                                <div class="example-chip" data-question="Factor the expression: 2x² + 7x + 3">
+                                    Factor 2x² + 7x + 3
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OCR Preview Modal -->
+                <div id="ocr-preview-modal" class="modal" style="display: none;">
+                    <div class="modal-content ocr-modal-content">
+                        <div class="modal-header">
+                            <h3>Image Text Extraction</h3>
+                            <span class="close-btn">&times;</span>
+                        </div>
+                        <div class="modal-body">
+                            <div class="ocr-preview-grid">
+                                <div class="preview-column">
+                                    <h4>Original Image</h4>
+                                    <div class="image-preview">
+                                        <img id="ocr-preview-img" src="" alt="Uploaded image">
+                                    </div>
+                                </div>
+                                <div class="preview-column">
+                                    <h4>Extracted Text</h4>
+                                    <div class="text-preview">
+                                        <textarea id="extracted-text" placeholder="Extracting text..."></textarea>
+                                        <div class="ocr-actions">
+                                            <button id="edit-text" class="btn btn-outline btn-sm">
+                                                <i class="fas fa-edit"></i> Edit Text
+                                            </button>
+                                            <button id="retry-ocr" class="btn btn-outline btn-sm">
+                                                <i class="fas fa-redo"></i> Retry OCR
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-actions">
+                                <button id="cancel-ocr" class="btn btn-outline">Cancel</button>
+                                <button id="send-ocr-text" class="btn btn-primary">
+                                    <i class="fas fa-paper-plane"></i> Send to Chat
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <div class="input-actions">
+                        <button id="upload-image-btn" class="btn btn-outline btn-sm" title="Upload Image">
+                            <i class="fas fa-camera"></i>
+                        </button>
+                        <input type="file" id="image-upload" accept="image/*" capture="environment" style="display: none;">
+                    </div>
+                    <div class="input-wrapper">
+                        <textarea 
+                            id="chat-input" 
+                            placeholder="Ask me any math question or upload an image..." 
+                            rows="1"
+                        ></textarea>
+                        <button id="send-message" class="btn btn-primary" title="Send Message">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 ThetaMind.</p>
+        </div>
+    </footer>
+
+    <script src="/static/js/chat.js"></script>
+    <script src="/static/js/script.js"></script>
+</body>
+</html>

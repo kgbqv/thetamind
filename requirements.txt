@@ -15,3 +15,5 @@ bcrypt==4.1.2
 authlib
 itsdangerous
 md2html
+opencv-python
+pydantic

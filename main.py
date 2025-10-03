@@ -16,6 +16,15 @@ from starlette.responses import Response
 from authlib.integrations.starlette_client import OAuth
 from starlette.middleware.sessions import SessionMiddleware
 from urllib.parse import quote, unquote
+import pytesseract
+from PIL import Image, ImageEnhance, ImageFilter
+import cv2
+import numpy as np
+from typing import List, Optional
+import uuid
+from datetime import datetime
+import re
+import time
 
 load_dotenv()
 
@@ -99,10 +108,52 @@ def db_init():
         ts DATETIME DEFAULT CURRENT_TIMESTAMP, 
         FOREIGN KEY (user_id) REFERENCES users (id)
     )""")
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS chat_conversations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        conversation_id TEXT UNIQUE NOT NULL,
+        title TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id)
+    )
+    """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id TEXT NOT NULL,
+        role TEXT NOT NULL, -- 'user' or 'assistant'
+        content TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (conversation_id) REFERENCES chat_conversations(conversation_id)
+    )
+    """)
     conn.commit()
     conn.close()
 
 db_init()
+
+class OCRRequest(BaseModel):
+    image_data: str
+
+class OCRResponse(BaseModel):
+    text: str
+    success: bool
+    error: Optional[str] = None
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ChatRequest(BaseModel):
+    message: str
+    conversation_id: Optional[str] = None
+
+class ChatResponse(BaseModel):
+    response: str
+    conversation_id: str
+    message_id: int
 
 # --- User and Session Management ---
 
@@ -164,6 +215,125 @@ def update_user_coins(username: str, coins_delta: int, allow_negative: bool = Fa
     
     return new_balance
 
+def preprocess_image_for_ocr(image):
+    """Enhanced preprocessing for math symbols"""
+    # Convert to grayscale
+    if image.mode != 'L':
+        image = image.convert('L')
+    
+    # Convert to numpy array for OpenCV processing
+    img_array = np.array(image)
+    
+    # Apply Gaussian blur to reduce noise
+    img_array = cv2.GaussianBlur(img_array, (3, 3), 0)
+    
+    # Apply adaptive thresholding
+    img_array = cv2.adaptiveThreshold(
+        img_array, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+    )
+    
+    # Convert back to PIL Image
+    image = Image.fromarray(img_array)
+    
+    # Enhance contrast
+    enhancer = ImageEnhance.Contrast(image)
+    image = enhancer.enhance(2.0)
+    
+    # Enhance sharpness
+    enhancer = ImageEnhance.Sharpness(image)
+    image = enhancer.enhance(1.5)
+    
+    return image
+
+def clean_ocr_text(text):
+    """Enhanced cleaning for math OCR with LaTeX conversion"""
+    # Remove extra whitespace but preserve line breaks for multi-line problems
+    text = re.sub(r' +', ' ', text)
+    text = re.sub(r'\n\s*\n', '\n', text)
+    
+    # Common OCR corrections for math symbols with LaTeX equivalents
+    replacements = {
+        # Basic operators
+        '—': '-', '–': '-', '−': '-',
+        '×': '\\times', '÷': '\\div', '∗': '*', '⋅': '\\cdot',
+        '≤': '\\leq', '≥': '\\geq', '≠': '\\neq', '≈': '\\approx',
+        '±': '\\pm', '∓': '\\mp',
+        
+        # Greek letters
+        'α': '\\alpha', 'β': '\\beta', 'γ': '\\gamma', 'δ': '\\delta',
+        'ε': '\\epsilon', 'ζ': '\\zeta', 'η': '\\eta', 'θ': '\\theta',
+        'ι': '\\iota', 'κ': '\\kappa', 'λ': '\\lambda', 'μ': '\\mu',
+        'ν': '\\nu', 'ξ': '\\xi', 'π': '\\pi', 'ρ': '\\rho',
+        'σ': '\\sigma', 'τ': '\\tau', 'υ': '\\upsilon', 'φ': '\\phi',
+        'χ': '\\chi', 'ψ': '\\psi', 'ω': '\\omega',
+        
+        # Capital Greek letters
+        'Α': 'A', 'Β': 'B', 'Γ': '\\Gamma', 'Δ': '\\Delta',
+        'Ε': 'E', 'Ζ': 'Z', 'Η': 'H', 'Θ': '\\Theta',
+        'Ι': 'I', 'Κ': 'K', 'Λ': '\\Lambda', 'Μ': 'M',
+        'Ν': 'N', 'Ξ': '\\Xi', 'Π': '\\Pi', 'Ρ': 'P',
+        'Σ': '\\Sigma', 'Τ': 'T', 'Υ': '\\Upsilon', 'Φ': '\\Phi',
+        'Χ': 'X', 'Ψ': '\\Psi', 'Ω': '\\Omega',
+        
+        # Math symbols
+        '∞': '\\infty', '∂': '\\partial', '∇': '\\nabla',
+        '∫': '\\int', '∬': '\\iint', '∭': '\\iiint', '∮': '\\oint',
+        '∑': '\\sum', '∏': '\\prod', '∐': '\\coprod',
+        '√': '\\sqrt', '∛': '\\sqrt[3]', '∜': '\\sqrt[4]',
+        
+        # Sets and logic
+        '∈': '\\in', '∉': '\\notin', '⊂': '\\subset', '⊃': '\\supset',
+        '⊆': '\\subseteq', '⊇': '\\supseteq', '∪': '\\cup', '∩': '\\cap',
+        '∅': '\\emptyset', '∀': '\\forall', '∃': '\\exists', '∄': '\\nexists',
+        '∴': '\\therefore', '∵': '\\because',
+        
+        # Arrows
+        '→': '\\rightarrow', '←': '\\leftarrow', '↔': '\\leftrightarrow',
+        '⇒': '\\Rightarrow', '⇐': '\\Leftarrow', '⇔': '\\Leftrightarrow',
+        '↦': '\\mapsto',
+        
+        # Fractions and brackets
+        '½': '\\frac{1}{2}', '⅓': '\\frac{1}{3}', '¼': '\\frac{1}{4}',
+        '⅔': '\\frac{2}{3}', '¾': '\\frac{3}{4}',
+        '⟨': '\\langle', '⟩': '\\rangle',
+        
+        # Common OCR mistakes
+        'ﬂ': 'fl', 'ﬁ': 'fi', 'ﬀ': 'ff', 'ﬃ': 'ffi', 'ﬄ': 'ffl',
+        '“': '"', '”': '"', '‘': "'", '’': "'", '´': "'", '`': "'",
+    }
+    
+    for wrong, correct in replacements.items():
+        text = text.replace(wrong, correct)
+    
+    # Convert common math patterns to LaTeX
+    text = convert_math_patterns_to_latex(text)
+    
+    return text.strip()
+
+def convert_math_patterns_to_latex(text):
+    """Convert common math patterns to LaTeX format"""
+    
+    # Convert fractions: a/b to \frac{a}{b}
+    text = re.sub(r'(\d+)/(\d+)', r'\\frac{\1}{\2}', text)
+    
+    # Convert exponents: x^2 to x^{2}
+    text = re.sub(r'(\w)\^(\d+)', r'\1^{\2}', text)
+    
+    # Convert subscripts: x_1 to x_{1}
+    text = re.sub(r'(\w)_(\d+)', r'\1_{\2}', text)
+    
+    # Convert square roots: sqrt(x) to \sqrt{x}
+    text = re.sub(r'sqrt\(([^)]+)\)', r'\\sqrt{\1}', text)
+    
+    # Convert common functions
+    text = re.sub(r'\bsin\b', '\\sin', text)
+    text = re.sub(r'\bcos\b', '\\cos', text)
+    text = re.sub(r'\btan\b', '\\tan', text)
+    text = re.sub(r'\blog\b', '\\log', text)
+    text = re.sub(r'\bln\b', '\\ln', text)
+    text = re.sub(r'\blim\b', '\\lim', text)
+    
+    return text
 
 # ----------AI INTEGRATION----------
 
@@ -770,6 +940,295 @@ async def get_user_stats(request: Request):
 
     badges = [b[0] for b in badges_raw]
     return JSONResponse(content={"coins": coins, "badges": badges})
+
+@app.post("/api/chat/send")
+async def send_chat_message(chat_request: ChatRequest, request: Request):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(content={"error": "Authentication required"}, status_code=401)
+    
+    try:
+        conn = sqlite3.connect(DB)
+        cur = conn.cursor()
+        
+        # Create new conversation if needed
+        if not chat_request.conversation_id:
+            conversation_id = str(uuid.uuid4())
+            title = chat_request.message[:50] + "..." if len(chat_request.message) > 50 else chat_request.message
+            cur.execute(
+                "INSERT INTO chat_conversations (user_id, conversation_id, title) VALUES (?, ?, ?)",
+                (user["id"], conversation_id, title)
+            )
+        else:
+            conversation_id = chat_request.conversation_id
+            # Update conversation timestamp
+            cur.execute(
+                "UPDATE chat_conversations SET updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
+                (conversation_id,)
+            )
+        
+        # Save user message
+        cur.execute(
+            "INSERT INTO chat_messages (conversation_id, role, content) VALUES (?, ?, ?)",
+            (conversation_id, "user", chat_request.message)
+        )
+        user_message_id = cur.lastrowid
+        
+        # Get conversation history for context
+        cur.execute(
+            "SELECT role, content FROM chat_messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT 10",
+            (conversation_id,)
+        )
+        history = cur.fetchall()
+        
+        # Build context from history
+        context_messages = []
+        for role, content in history:
+            context_messages.append({"role": role, "content": content})
+        
+        # Enhanced math tutoring prompt
+        math_prompt = (
+            "You are an expert math tutor. The user asks: "
+            f"\"{chat_request.message}\"\n\n"
+            "Please provide a comprehensive, step-by-step explanation. Follow these guidelines:\n\n"
+            "1. **Understand the Problem**: Restate the problem in your own words\n"
+            "2. **Step-by-Step Solution**: Break it down into logical, numbered steps\n"
+            "3. **Mathematical Notation**: Use proper LaTeX for all mathematical expressions\n"
+            "4. **Key Concepts**: Explain the underlying principles and why each step works\n"
+            "5. **Final Answer**: Clearly state the final answer\n"
+            "6. **Verification**: Suggest how to verify the answer\n"
+            "7. **Related Practice**: Mention related problems for practice\n\n"
+            "Format your response using markdown with:\n"
+            "- **Bold** for important concepts\n"
+            "- `inline code` for mathematical variables\n"
+            "- $$ for block equations (e.g., $$x = \\frac{{-b \\pm \\sqrt{{b^2 - 4ac}}}}{{2a}}$$)\n"
+            "- $ for inline equations (e.g., $x^2 + y^2 = z^2$)\n"
+            "- Bullet points for steps and explanations\n"
+            "- Tables for comparing methods when appropriate\n\n"
+            "Be encouraging, patient, and focus on building understanding rather than just giving answers."
+        )
+
+
+        # Include conversation history for context
+        messages = [{"role": "system", "content": math_prompt}]
+        for msg in context_messages:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        
+        # Use the last message as the current prompt
+        final_prompt = "\n\n".join([msg["content"] for msg in messages])
+        
+        ai_response = await ai_q(final_prompt)
+        
+        # Save AI response
+        cur.execute(
+            "INSERT INTO chat_messages (conversation_id, role, content) VALUES (?, ?, ?)",
+            (conversation_id, "assistant", ai_response)
+        )
+        ai_message_id = cur.lastrowid
+        
+        conn.commit()
+        conn.close()
+        
+        return JSONResponse(content={
+            "response": ai_response,
+            "conversation_id": conversation_id,
+            "message_id": ai_message_id
+        })
+        
+    except Exception as e:
+        print(f"Chat error: {str(e)}")
+        return JSONResponse(content={"error": "Failed to process message"}, status_code=500)
+
+# Enhanced OCR endpoint with confidence scoring
+@app.post("/api/ocr/extract-text", response_model=OCRResponse)
+async def extract_text_from_image(request: OCRRequest):
+    try:
+        # Remove data URL prefix if present
+        if ',' in request.image_data:
+            image_data = request.image_data.split(',')[1]
+        else:
+            image_data = request.image_data
+            
+        # Decode base64 image
+        image_bytes = base64.b64decode(image_data)
+        image = Image.open(io.BytesIO(image_bytes))
+        
+        # Get image dimensions for quality assessment
+        width, height = image.size
+        if width < 100 or height < 100:
+            return OCRResponse(text="", success=False, error="Image too small for OCR")
+        
+        # Preprocess image for better OCR
+        processed_image = preprocess_image_for_ocr(image)
+        
+        # Configure Tesseract for math symbols
+        custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ()[]{}<>+-=*/\\|^_~!@#$%&.,:;?°²³αβγδϵζηθικλμνξπρστυϕχψωΓΔΘΛΞΠΣΦΨΩ∞∂∇∫∑∏√∛∜≤≥≠≈±∓×÷∈∉⊂⊃⊆⊇∪∩∅∀∃∄∴∵→←↔⇒⇐⇔↦⟨⟩'
+        
+        # Extract text using Tesseract with confidence
+        data = pytesseract.image_to_data(processed_image, config=custom_config, output_type=pytesseract.Output.DICT)
+        
+        # Calculate average confidence
+        confidences = [int(conf) for conf in data['conf'] if int(conf) > 0]
+        avg_confidence = sum(confidences) / len(confidences) if confidences else 0
+        
+        # Extract text with reasonable confidence
+        text_parts = []
+        for i in range(len(data['text'])):
+            if int(data['conf'][i]) > 30:  # Reasonable confidence threshold
+                text_parts.append(data['text'][i])
+        
+        raw_text = ' '.join(text_parts)
+        
+        # Clean and enhance the text
+        cleaned_text = clean_ocr_text(raw_text)
+        
+        # Add confidence information
+        if avg_confidence < 50:
+            cleaned_text += f"\n\n⚠️ Low confidence ({avg_confidence:.1f}%). Please verify the extracted text."
+        
+        return OCRResponse(text=cleaned_text, success=True)
+        
+    except Exception as e:
+        print(f"OCR Error: {str(e)}")
+        return OCRResponse(text="", success=False, error=str(e))
+
+@app.get("/api/chat/conversations")
+async def get_user_conversations(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(content={"error": "Authentication required"}, status_code=401)
+    
+    conn = sqlite3.connect(DB)
+    cur = conn.cursor()
+    
+    cur.execute("""
+        SELECT conversation_id, title, created_at, updated_at 
+        FROM chat_conversations 
+        WHERE user_id = ? 
+        ORDER BY updated_at DESC
+    """, (user["id"],))
+    
+    conversations = []
+    for row in cur.fetchall():
+        conversations.append({
+            "conversation_id": row[0],
+            "title": row[1],
+            "created_at": row[2],
+            "updated_at": row[3]
+        })
+    
+    conn.close()
+    return JSONResponse(content={"conversations": conversations})
+
+@app.get("/api/chat/messages/{conversation_id}")
+async def get_conversation_messages(conversation_id: str, request: Request):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(content={"error": "Authentication required"}, status_code=401)
+    
+    # Verify user owns this conversation
+    conn = sqlite3.connect(DB)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id FROM chat_conversations WHERE conversation_id = ? AND user_id = ?",
+        (conversation_id, user["id"])
+    )
+    
+    if not cur.fetchone():
+        conn.close()
+        return JSONResponse(content={"error": "Conversation not found"}, status_code=404)
+    
+    # Get messages
+    cur.execute("""
+        SELECT role, content, created_at 
+        FROM chat_messages 
+        WHERE conversation_id = ? 
+        ORDER BY created_at ASC
+    """, (conversation_id,))
+    
+    messages = []
+    for row in cur.fetchall():
+        messages.append({
+            "role": row[0],
+            "content": row[1],
+            "timestamp": row[2]
+        })
+    
+    conn.close()
+    return JSONResponse(content={"messages": messages})
+
+@app.delete("/api/chat/conversation/{conversation_id}")
+async def delete_conversation(conversation_id: str, request: Request):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(content={"error": "Authentication required"}, status_code=401)
+    
+    conn = sqlite3.connect(DB)
+    cur = conn.cursor()
+    
+    # Verify ownership and delete
+    cur.execute(
+        "DELETE FROM chat_conversations WHERE conversation_id = ? AND user_id = ?",
+        (conversation_id, user["id"])
+    )
+    
+    if cur.rowcount > 0:
+        # Also delete associated messages
+        cur.execute("DELETE FROM chat_messages WHERE conversation_id = ?", (conversation_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    return JSONResponse(content={"success": True})
+
+# AI Solver Endpoint (enhanced with OCR support)
+@app.post("/api/solve-problem")
+async def solve_problem(request: Request, problem_text: str = Form(None), image_data: str = Form(None)):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(content={"error": "Authentication required"}, status_code=401)
+    
+    try:
+        # Handle OCR if image is provided
+        if image_data and not problem_text:
+            ocr_response = await extract_text_from_image(OCRRequest(image_data=image_data))
+            if ocr_response.success:
+                problem_text = ocr_response.text
+            else:
+                return JSONResponse(content={"error": "Failed to extract text from image"}, status_code=400)
+        
+        if not problem_text:
+            return JSONResponse(content={"error": "No problem provided"}, status_code=400)
+        
+        prompt = f"""Solve this math problem step by step: {problem_text}
+
+Please provide a comprehensive solution with:
+1. Understanding the problem
+2. Step-by-step solution
+3. Final answer
+4. Explanation of key concepts
+
+Use markdown formatting and mathematical notation where appropriate."""
+
+        solution = await ai_q(prompt)
+        
+        return JSONResponse(content={
+            "problem": problem_text,
+            "solution": solution,
+            "used_ocr": bool(image_data)
+        })
+        
+    except Exception as e:
+        print(f"Solve problem error: {str(e)}")
+        return JSONResponse(content={"error": "Failed to solve problem"}, status_code=500)
+
+# Add chat route
+@app.get("/chat", response_class=HTMLResponse)
+async def chat_page(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse("chat.html", {"request": request, "user": user})
 
 
 @app.get("/coming_soon", response_class=HTMLResponse)
