@@ -460,7 +460,8 @@ async def get_challenge_progress(request: Request):
 @app.post("/api/evaluate_answer")
 async def evaluate_answer(request: Request, question: str = Form(...), user_solution: str = Form(...), correct_solution: str = Form(...), topic: str = Form(...), difficulty: str = Form(...)):
     user = get_current_user(request)
-    if not user: return JSONResponse(content={"error": "Authentication required"}, status_code=401)
+    if not user:
+        return JSONResponse(content={"error": "Authentication required"}, status_code=401)
 
     prompt = f"""As an expert AI Math Tutor, evaluate a student's work.
     Original Question: "{question}"
@@ -470,53 +471,37 @@ async def evaluate_answer(request: Request, question: str = Form(...), user_solu
     Provide your evaluation as a JSON object with keys: "is_correct" (boolean), "feedback" (constructive paragraph), "smarter_way" (alternative method or encouragement)."""
     ai_response = await ai_q(prompt)
     ai_response = clean_response(ai_response)
-    
+
     try:
         evaluation = json.loads(ai_response)
         is_correct = evaluation.get("is_correct", False)
-        coins_earned = 0
-        if is_correct:
-            base_coins = TOPIC_WEIGHTS.get(topic, 1.0)
-            multiplier = DIFFICULTY_MULTIPLIERS.get(difficulty, 1)
-            coins_earned = int(base_coins * multiplier)
 
-        conn = sqlite3.connect(DB)
-        cur = conn.cursor()
         if is_correct:
-            # Calculate coins earned
-            base_coins = TOPIC_WEIGHTS.get(topic, 1.0)
-            multiplier = DIFFICULTY_MULTIPLIERS.get(difficulty, 1)
-            coins_earned = int(base_coins * multiplier)
-
-            # Mark node as completed if not already
             try:
-                cur.execute("INSERT INTO user_progress (user_id, node_id) VALUES (?, ?)", 
-                           (user["id"], node_id))
-
-                # Update coins
-                update_user_coins(user["username"], coins_earned)
-
-                # Check for badge achievements
-                badge_earned = check_badge_achievements(cur, user["id"])
-                if badge_earned:
-                    # Update badge in database
-                    cur.execute("INSERT INTO user_badges (user_id, badge_id) VALUES (?, ?)", 
-                               (user["id"], badge_earned))
-
-            except sqlite3.IntegrityError:
-                # Node already completed
+                if difficulty == "Easy":
+                    update_user_coins(user["username"], 5)
+                elif difficulty == "Medium":
+                    update_user_coins(user["username"], 10)
+                elif difficulty == "Hard":
+                    update_user_coins(user["username"], 20)
+            except ValueError as ve:
                 pass
 
-        # Log the attempt
-        cur.execute("INSERT INTO quiz_history (user_id, topic, difficulty, question, user_solution, is_correct) VALUES (?, ?, ?, ?, ?, ?)",
-                   (user["id"], topic, difficulty, question, user_solution, is_correct))
-
+        # Save to database
+        conn = sqlite3.connect(DB)
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO quiz_history (user_id, topic, difficulty, question, user_solution, is_correct)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (user["id"], topic, difficulty, question, user_solution, is_correct))
         conn.commit()
         conn.close()
 
         return JSONResponse(content=evaluation)
     except (json.JSONDecodeError, TypeError):
         return JSONResponse(content={"error": "Failed to get a valid evaluation from AI."}, status_code=500)
+
+
 @app.post("/api/buy_hint")
 async def buy_hint(request: Request, node_id: str = Form(...)):
     user = get_current_user(request)
