@@ -164,7 +164,7 @@ body.light-mode .navbar {
     border-bottom-color: var(--accent-color);
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
     .navbar .nav-toggle {
         display: none; /* Hide hamburger */
     }
@@ -825,21 +825,23 @@ body.light-mode .topic-content h3 {
 /* --- Dashboard --- */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    /* grid-template-columns: 1fr; Single column on mobile */
+    /* grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); */
     gap: 2rem;
 }
 
 .dashboard-card {
-    background: var(--card-bg);
+    background-color: var(--secondary-bg);
+    padding: 1.5rem;
+    border-radius: 8px;
     border: 1px solid var(--border-color);
-    border-radius: 10px;
-    padding: 2rem;
+    box-shadow: 0 4px 15px var(--shadow-color);
 }
-
 .dashboard-card h3 {
-    text-align: center;
-    margin-bottom: 1.5rem;
-    font-family: var(--font-heading);
+    margin-top: 0;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
 }
 
 
@@ -951,9 +953,17 @@ body.light-mode .topic-content h3 {
     font-size: 1.6rem;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
     .docs-sidebar {
         display: block;
+    }
+    .gamification-header {
+        flex-direction: row; /* Side-by-side on larger screens */
+        justify-content: space-between;
+    }
+
+    .dashboard-grid {
+        grid-template-columns: repeat(2, 1fr); /* Two columns for dashboard */
     }
 }
 
@@ -1045,6 +1055,7 @@ body.light-mode .topic-content h3 {
 /* --- Gamification Header --- */
 .gamification-header {
     display: flex;
+    flex-direction: column; /* Stacked on mobile */
     justify-content: space-between;
     align-items: center;
     background-color: var(--secondary-bg);
