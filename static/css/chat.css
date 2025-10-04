@@ -202,6 +202,7 @@ body.dark-mode .upload-option-btn i {
     overflow: hidden;
     text-overflow: ellipsis;
     color: var(--text-color);
+    max-width: 100%;
 }
 
 .conversation-date {
@@ -437,6 +438,7 @@ body.dark-mode .message.user {
 }
 
 .message-content {
+    overflow-wrap: break-word;
     word-wrap: break-word;
 }
 
@@ -531,7 +533,13 @@ body.dark-mode .message.user {
 }
 
 .mjx-chtml {
-    outline: none;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.message-content .mjx-container {
+    max-width: 100%;
+    overflow-x: auto;
 }
 
 /* Chat Input */
@@ -787,8 +795,13 @@ body.dark-mode .message.user {
         display: block;
     }
     
-    .chat-header {
-        padding: 1rem;
+    .chat-header h3 {
+        max-width: 150px;
+        font-size: 1rem;
+    }
+
+    .header-actions {
+        flex-shrink: 0;
     }
     
     .chat-messages {
@@ -814,12 +827,8 @@ body.dark-mode .message.user {
         grid-template-columns: 1fr;
     }
     
-    .message {
-        max-width: 95%;
-    }
-    
     .chat-input-container {
-        padding: 1rem;
+        padding-bottom: calc(1rem + env(safe-area-inset-bottom));
     }
     
     .input-wrapper {
@@ -830,6 +839,20 @@ body.dark-mode .message.user {
     #send-message {
         width: 42px;
         height: 42px;
+    }
+
+    .chat-main {
+        height: 100%;
+    }
+    
+    .chat-messages {
+        padding-bottom: 1rem;
+    }
+    
+    /* Better message display on mobile */
+    .message {
+        max-width: 92%;
+        padding: 1rem 1.25rem;
     }
 
     .chat-main::after {
@@ -852,7 +875,12 @@ body.dark-mode .message.user {
     }
 
     .chat-container {
-        height: calc(100vh - 120px);
+        height: 100vh;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
     }
     
     .chat-sidebar {
@@ -860,7 +888,8 @@ body.dark-mode .message.user {
         left: 0;
         top: 0;
         height: 100vh;
-        width: 280px;
+        width: 85vw;
+        max-width: 320px;
         z-index: 1000;
         transform: translateX(-100%);
         box-shadow: 5px 0 25px rgba(0,0,0,0.2);
@@ -944,6 +973,11 @@ body.dark-mode .message.user {
         max-width: 100%;
         padding: 1rem 1.25rem;
     }
+
+    .chat-header h3 {
+        max-width: 120px;
+        font-size: 0.9rem;
+    }
     
     .input-actions {
         justify-content: center;
@@ -993,6 +1027,15 @@ body.mobile .chat-input-container {
 
 body.mobile .chat-sidebar {
     padding-bottom: env(safe-area-inset-bottom);
+}
+
+body.mobile .message {
+    max-width: 95%;
+}
+
+body.mobile .chat-input-container {
+    padding-left: 1rem;
+    padding-right: 1rem;
 }
 
 /* Preview Styles */

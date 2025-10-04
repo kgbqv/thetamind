@@ -20,6 +20,8 @@ class MathChat {
         this.setupMathJax();
         this.setupMobileFeatures();
         this.setupPreviewFeatures();
+
+        setTimeout(() => this.rerenderMathJax(), 500);
     }
 
     setupMathJax() {
@@ -48,6 +50,49 @@ class MathChat {
         if (this.isMobile) {
             document.body.classList.add('mobile');
             this.setupMobileGestures();
+            this.setupMobileOptimizations();
+        }
+    }
+
+    setupMobileOptimizations() {
+        // Optimize for mobile performance
+        this.setupTouchEvents();
+        this.optimizeMathJaxForMobile();
+    }
+
+    setupTouchEvents() {
+        // Better touch handling for mobile
+        const chatInput = document.getElementById('chat-input');
+        
+        // Prevent zoom on focus (iOS)
+        chatInput.addEventListener('touchstart', function() {
+            this.style.fontSize = '16px'; // Prevent zoom
+        });
+        
+        // Improved touch scrolling
+        const messagesContainer = document.getElementById('chat-messages');
+        messagesContainer.addEventListener('touchstart', function(e) {
+            this.classList.add('scrolling');
+        });
+        
+        messagesContainer.addEventListener('touchend', function(e) {
+            setTimeout(() => this.classList.remove('scrolling'), 100);
+        });
+    }
+
+    optimizeMathJaxForMobile() {
+        // Optimize MathJax for mobile devices
+        if (window.MathJax && window.MathJax.Hub && window.MathJax.Hub.Config) {
+            window.MathJax.Hub.Config({
+                CommonHTML: { scale: 85 },
+                "HTML-CSS": { scale: 85 },
+                SVG: { scale: 85 },
+                menuSettings: { 
+                    zoom: "Click",
+                    mpContext: true,
+                    mpMouse: true
+                }
+            });
         }
     }
 
@@ -641,7 +686,7 @@ class MathChat {
                 welcomeMessage.remove();
             }
         }
-
+    
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${role}`;
         
@@ -650,13 +695,15 @@ class MathChat {
         } else {
             messageDiv.innerHTML = `<div class="message-content">${this.escapeHtml(content)}</div>`;
         }
-
+    
         messagesContainer.appendChild(messageDiv);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-        // Render MathJax for new messages
+    
+        // Enhanced MathJax rendering with retry logic
         if (window.MathJax && role === 'assistant') {
-            this.rerenderMathJax();
+            setTimeout(() => this.rerenderMathJax(), 100);
+            // Additional retry for complex equations
+            setTimeout(() => this.rerenderMathJax(), 500);
         }
     }
 
@@ -684,9 +731,8 @@ class MathChat {
     renderMessages(messages) {
         const messagesContainer = document.getElementById('chat-messages');
         messagesContainer.innerHTML = '';
-
+    
         if (messages.length === 0) {
-            // Use the createWelcomeMessage method instead of trying to clone from DOM
             messagesContainer.innerHTML = this.createWelcomeMessage();
             
             // Re-add event listeners for example chips
@@ -697,13 +743,22 @@ class MathChat {
                     this.sendMessage();
                 });
             });
-
+    
+            // Render MathJax for welcome message if needed
+            setTimeout(() => this.rerenderMathJax(), 100);
             return;
         }
-
+    
         messages.forEach(message => {
             this.addMessage(message.role, message.content);
         });
+    
+        // Ensure MathJax renders after all messages are loaded
+        setTimeout(() => {
+            this.rerenderMathJax();
+            // Additional check after a longer delay
+            setTimeout(() => this.rerenderMathJax(), 1000);
+        }, 100);
     }
 
     createWelcomeMessage() {
@@ -806,8 +861,11 @@ class MathChat {
                 const data = await response.json();
                 const messages = data.messages || [];
                 
+                const title = document.getElementById('current-chat-title').textContent;
+                const firstThreeWords = title.split(' ').slice(0, 3).join(' ');
+
                 let exportText = `ThetaMind Chat Export\n`;
-                exportText += `Conversation: ${document.getElementById('current-chat-title').textContent}\n`;
+                exportText += `Conversation: ${firstThreeWords}\n`;
                 exportText += `Exported: ${new Date().toLocaleString()}\n\n`;
                 
                 messages.forEach(msg => {
@@ -871,7 +929,19 @@ class MathChat {
 
     rerenderMathJax() {
         if (window.MathJax && MathJax.typesetPromise) {
-            MathJax.typesetPromise();
+            // Use Promise to ensure proper rendering
+            MathJax.typesetPromise().catch((error) => {
+                console.warn('MathJax typeset failed:', error);
+                // Fallback: retry after a short delay
+                setTimeout(() => {
+                    if (window.MathJax && MathJax.typesetPromise) {
+                        MathJax.typesetPromise();
+                    }
+                }, 500);
+            });
+        } else if (window.MathJax) {
+            // Fallback for older MathJax versions
+            window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub]);
         }
     }
 

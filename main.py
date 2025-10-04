@@ -526,6 +526,148 @@ def convert_math_patterns_to_latex(text):
 
 # ----------AI INTEGRATION----------
 
+async def enhance_image_for_ocr(image):
+    """Enhanced image preprocessing for better OCR results"""
+    # Convert to numpy array for OpenCV processing
+    img_array = np.array(image.convert('RGB'))
+    
+    # Multiple enhancement techniques
+    enhanced_images = []
+    
+    # 1. Original grayscale
+    gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+    enhanced_images.append(('gray', gray))
+    
+    # 2. Contrast enhancement
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+    contrast = clahe.apply(gray)
+    enhanced_images.append(('contrast', contrast))
+    
+    # 3. Denoising
+    denoised = cv2.fastNlMeansDenoising(gray)
+    enhanced_images.append(('denoised', denoised))
+    
+    # 4. Sharpening
+    kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
+    sharpened = cv2.filter2D(gray, -1, kernel)
+    enhanced_images.append(('sharpened', sharpened))
+    
+    # 5. Adaptive threshold
+    adaptive = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                   cv2.THRESH_BINARY, 11, 2)
+    enhanced_images.append(('adaptive', adaptive))
+    
+    # Test all enhanced images and choose the best one
+    best_image = gray  # default
+    max_text_length = 0
+    
+    for name, enhanced_img in enhanced_images:
+        try:
+            # Quick OCR test
+            test_text = pytesseract.image_to_string(enhanced_img, config='--oem 3 --psm 6')
+            if len(test_text.strip()) > max_text_length:
+                max_text_length = len(test_text.strip())
+                best_image = enhanced_img
+        except:
+            continue
+    
+    # Convert back to PIL Image
+    return Image.fromarray(best_image)
+
+async def correct_ocr_with_ai(ocr_text):
+    """Use AI to correct and enhance OCR results"""
+    if not ocr_text.strip():
+        return ocr_text
+    
+    prompt = f"""
+    Correct and enhance this OCR-extracted text. The text may contain:
+    - Vietnamese language with diacritics
+    - Mathematical expressions and symbols
+    - OCR errors and misrecognitions
+    
+    Original OCR text:
+    "{ocr_text}"
+    
+    Please:
+    1. Correct any OCR errors
+    2. Restore proper Vietnamese diacritics where appropriate
+    3. Identify and properly format mathematical expressions
+    4. Maintain the original meaning and structure
+    5. Return only the corrected text, no explanations
+    
+    If it's primarily Vietnamese, keep it in Vietnamese.
+    If it's primarily math, format mathematical expressions properly.
+    """
+    
+    try:
+        corrected = await ai_q(prompt)
+        return corrected.strip()
+    except Exception as e:
+        print(f"AI correction failed: {e}")
+        return ocr_text  # Return original if AI fails
+
+async def format_math_text_with_ai(text):
+    """Use AI to format text with proper LaTeX for mathematics"""
+    if not text.strip():
+        return text
+    
+    # Check if text contains mathematical content
+    math_indicators = ['=', '+', '-', '*', '/', '^', 'sqrt', 'frac', '∫', '∑', '∞', '∂']
+    has_math = any(indicator in text for indicator in math_indicators)
+    
+    if not has_math:
+        return text  # Return as is if no math detected
+    
+    prompt = f"""
+    Format this text with proper LaTeX for mathematical expressions while preserving any natural language:
+    
+    "{text}"
+    
+    Instructions:
+    1. Keep Vietnamese text as is
+    2. Convert mathematical expressions to proper LaTeX format
+    3. Use $ for inline math and $$ for display math
+    4. Preserve the original structure and meaning
+    5. Don't add any explanations or notes
+    
+    Examples:
+    - "x^2 + 3x + 2 = 0" becomes "$x^2 + 3x + 2 = 0$"
+    - "Giải phương trình x^2 - 5x + 6 = 0" becomes "Giải phương trình $x^2 - 5x + 6 = 0$"
+    - "∫ from 0 to 1 of x dx" becomes "$\\int_0^1 x  dx$"
+    
+    Return only the formatted text.
+    """
+    
+    try:
+        formatted = await ai_q(prompt)
+        return formatted.strip()
+    except Exception as e:
+        print(f"Math formatting failed: {e}")
+        # Fallback: basic LaTeX conversion
+        return convert_math_patterns_to_latex(text)
+
+async def generate_chat_title(message: str) -> str:
+    """Generate a meaningful title using AI"""
+    prompt = f"""
+    Create a very short, descriptive title (max 4-5 words) for this chat message:
+    "{message}"
+    
+    Return only the title, no quotes or explanations.
+    Make it specific to math if it's a math question.
+    """
+    
+    try:
+        title = await ai_q(prompt)
+        # Clean up the response
+        title = title.strip().strip('"').strip("'")
+        if len(title) > 50:
+            title = title[:47] + "..."
+        return title or message[:50]
+    except:
+        # Fallback: use first few words of the message
+        words = message.split()[:4]
+        return ' '.join(words) + ('...' if len(message) > 20 else '')
+
 async def query_ai(prompt: str) -> str:
     """Helper function to call the appropriate AI provider"""
     if IS_AI_CONFIGURED:
@@ -1143,7 +1285,8 @@ async def send_chat_message(chat_request: ChatRequest, request: Request):
         # Create new conversation if needed
         if not chat_request.conversation_id:
             conversation_id = str(uuid.uuid4())
-            title = chat_request.message[:50] + "..." if len(chat_request.message) > 50 else chat_request.message
+            # Use AI to generate better title
+            title = await generate_chat_title(chat_request.message)
             cur.execute(
                 "INSERT INTO chat_conversations (user_id, conversation_id, title) VALUES (?, ?, ?)",
                 (user["id"], conversation_id, title)
@@ -1249,45 +1392,54 @@ async def extract_text_from_image(request: OCRRequest):
         if width < 100 or height < 100:
             return OCRResponse(text="", success=False, error="Image too small for OCR")
         
-        # Enhanced preprocessing for Vietnamese text
-        processed_image = preprocess_image_for_vietnamese(image)
+        # Enhanced preprocessing for different image types
+        processed_image = await enhance_image_for_ocr(image)
         
-        # Try multiple OCR configurations - SIMPLIFIED to avoid regex issues
-        configs_to_try = [
-            '--oem 3 --psm 6',  # Uniform block of text
-            '--oem 3 --psm 4',  # Single column of text
-        ]
+        # Try multiple OCR strategies
+        ocr_results = []
         
-        best_text = ""
-        best_confidence = 0
+        # Strategy 1: Vietnamese + English
+        try:
+            text_vie = pytesseract.image_to_string(processed_image, lang='vie+eng', config='--oem 3 --psm 6')
+            if text_vie.strip():
+                ocr_results.append(('vie+eng', text_vie))
+        except Exception as e:
+            print(f"Vietnamese OCR failed: {e}")
         
-        for config in configs_to_try:
+        # Strategy 2: English only
+        try:
+            text_eng = pytesseract.image_to_string(processed_image, lang='eng', config='--oem 3 --psm 6')
+            if text_eng.strip():
+                ocr_results.append(('eng', text_eng))
+        except Exception as e:
+            print(f"English OCR failed: {e}")
+        
+        # Strategy 3: Multiple PSM modes
+        psm_modes = [3, 4, 6, 8, 11]
+        for psm in psm_modes:
             try:
-                # Use simpler approach without complex whitelist
-                current_text = pytesseract.image_to_string(processed_image, config=config, lang='vie+eng')
-                
-                if current_text.strip():
-                    best_text = current_text
-                    break
-                    
+                text_psm = pytesseract.image_to_string(processed_image, config=f'--oem 3 --psm {psm}')
+                if text_psm.strip() and len(text_psm) > 10:  # Only consider substantial results
+                    ocr_results.append((f'psm_{psm}', text_psm))
             except Exception as e:
-                print(f"Config {config} failed: {e}")
                 continue
         
-        # Fallback: try without language specification
-        if not best_text.strip():
-            try:
-                best_text = pytesseract.image_to_string(processed_image, config='--psm 6')
-            except:
-                best_text = pytesseract.image_to_string(processed_image)
+        # Choose the best result (longest text usually means better recognition)
+        best_text = ""
+        if ocr_results:
+            # Sort by length (longer text usually means better recognition)
+            ocr_results.sort(key=lambda x: len(x[1]), reverse=True)
+            best_text = ocr_results[0][1]
+            print(f"Best OCR result from {ocr_results[0][0]}: {best_text[:100]}...")
+        else:
+            # Fallback: simple OCR
+            best_text = pytesseract.image_to_string(processed_image)
         
-        print(f"BEST_TEXT: {best_text}")  # Debug log
+        # AI-powered text correction and enhancement
+        corrected_text = await correct_ocr_with_ai(best_text)
         
-        # Enhanced cleaning for Vietnamese and math
-        cleaned_text = clean_vietnamese_math_text(best_text)
-        
-        # Format with Markdown and LaTeX
-        formatted_text = format_ocr_output(cleaned_text)
+        # Format with proper LaTeX and Markdown
+        formatted_text = await format_math_text_with_ai(corrected_text)
         
         return OCRResponse(text=formatted_text, success=True)
         
