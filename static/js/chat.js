@@ -21,7 +21,19 @@ class MathChat {
         this.setupMobileFeatures();
         this.setupPreviewFeatures();
 
-        setTimeout(() => this.rerenderMathJax(), 500);
+        // setTimeout(() => this.rerenderMathJax(), 500);
+        if (window.MathJax && window.MathJax.startup && window.MathJax.startup.promise) {
+            window.MathJax.startup.promise.then(() => {
+                // This executes only after MathJax is fully loaded and configured.
+                this.rerenderMathJax(); 
+            }).catch(e => {
+                console.error("MathJax startup promise failed:", e);
+            });
+        } else {
+            // Fallback if MathJax object hasn't even started loading (should be rare)
+            console.warn("Cannot find MathJax.startup. Falling back to load listener.");
+            window.addEventListener('load', () => this.rerenderMathJax());
+        }
     }
 
     setupMathJax() {
@@ -37,7 +49,8 @@ class MathChat {
                 skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
                 renderActions: {
                     addMenu: [0, '', '']
-                }
+                },
+                scale: 0.85
             },
             startup: {
                 typeset: false
@@ -78,22 +91,6 @@ class MathChat {
         messagesContainer.addEventListener('touchend', function(e) {
             setTimeout(() => this.classList.remove('scrolling'), 100);
         });
-    }
-
-    optimizeMathJaxForMobile() {
-        // Optimize MathJax for mobile devices
-        if (window.MathJax && window.MathJax.Hub && window.MathJax.Hub.Config) {
-            window.MathJax.Hub.Config({
-                CommonHTML: { scale: 85 },
-                "HTML-CSS": { scale: 85 },
-                SVG: { scale: 85 },
-                menuSettings: { 
-                    zoom: "Click",
-                    mpContext: true,
-                    mpMouse: true
-                }
-            });
-        }
     }
 
     setupPreviewFeatures() {
@@ -691,6 +688,7 @@ class MathChat {
         messageDiv.className = `message ${role}`;
         
         if (role === 'assistant') {
+            setTimeout(() => this.rerenderMathJax(), 100);
             messageDiv.innerHTML = `<div class="message-content">${this.md2html(content)}</div>`;
         } else {
             messageDiv.innerHTML = `<div class="message-content">${this.escapeHtml(content)}</div>`;
@@ -927,21 +925,26 @@ class MathChat {
         }
     }
 
-    rerenderMathJax() {
-        if (window.MathJax && MathJax.typesetPromise) {
-            // Use Promise to ensure proper rendering
-            MathJax.typesetPromise().catch((error) => {
-                console.warn('MathJax typeset failed:', error);
-                // Fallback: retry after a short delay
-                setTimeout(() => {
-                    if (window.MathJax && MathJax.typesetPromise) {
-                        MathJax.typesetPromise();
-                    }
-                }, 500);
-            });
-        } else if (window.MathJax) {
-            // Fallback for older MathJax versions
-            window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub]);
+    rerenderMathJax(targetElement = null) {
+        // MathJax v3 uses a promise-based typeset function.
+        if (window.MathJax && window.MathJax.typeset) {
+            console.log("Rerendering MathJax (v3.x)...");
+            
+            // If a targetElement is provided (e.g., a new message), only typeset that.
+            // Otherwise, typeset the whole document body.
+            const elements = targetElement ? [targetElement] : [document.body];
+            
+            // Using typesetPromise is cleaner if you need to chain async actions, 
+            // but simple typeset(elements) will re-render them.
+            try {
+                window.MathJax.typeset(elements); 
+            } catch (e) {
+                console.error("MathJax v3 Typeset error:", e);
+            }
+            
+        } else {
+            console.warn("MathJax.typeset is not available.");
+            // This will now catch the error from line 32 in your log.
         }
     }
 
