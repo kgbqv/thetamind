@@ -1,0 +1,38 @@
+# render.yaml — blueprint config for ThetaMind
+
+# bật PR previews tự động
+previews:
+  generation: automatic
+  expireAfterDays: 7
+
+services:
+  - type: web
+    name: thetamind-web
+    runtime: python
+    plan: free
+    repo: https://github.com/kgbqv/thetamind   # thay đổi thành repo của bạn
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: AI_PROVIDER
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    # nếu bạn muốn on PR previews riêng cho service
+    previews:
+      generation: automatic
+
+envVarGroups:
+  - name: default-env
+    envVars:
+      - key: AI_PROVIDER
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
