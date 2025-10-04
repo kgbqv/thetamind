@@ -17,4 +17,3 @@ itsdangerous
 md2html
 opencv-python
 pydantic
-tesseract-ocr-vie
