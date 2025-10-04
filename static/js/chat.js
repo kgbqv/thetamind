@@ -4,7 +4,13 @@ class MathChat {
         this.conversations = [];
         this.isSidebarOpen = window.innerWidth > 768;
         this.currentImageData = null;
+        this.isMobile = this.checkMobile();
         this.init();
+    }
+
+    checkMobile() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+               window.innerWidth <= 768;
     }
 
     async init() {
@@ -12,6 +18,8 @@ class MathChat {
         this.setupEventListeners();
         this.updateSidebarVisibility();
         this.setupMathJax();
+        this.setupMobileFeatures();
+        this.setupPreviewFeatures();
     }
 
     setupMathJax() {
@@ -35,6 +43,124 @@ class MathChat {
         };
     }
 
+    setupMobileFeatures() {
+        // Update UI for mobile
+        if (this.isMobile) {
+            document.body.classList.add('mobile');
+            this.setupMobileGestures();
+        }
+    }
+
+    setupPreviewFeatures() {
+        // Toggle preview in main chat
+        document.getElementById('toggle-preview').addEventListener('click', () => {
+            this.toggleInputPreview();
+        });
+    
+        document.getElementById('hide-preview').addEventListener('click', () => {
+            this.hideInputPreview();
+        });
+    
+        // Update preview when typing
+        document.getElementById('chat-input').addEventListener('input', () => {
+            this.updateInputPreview();
+        });
+    
+        // OCR modal tabs
+        this.setupOCRModalTabs();
+    }
+    
+    setupOCRModalTabs() {
+        const tabBtns = document.querySelectorAll('.ocr-tab-btn');
+        
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tabName = btn.dataset.tab;
+                this.switchOCRTab(tabName);
+            });
+        });
+    
+        // Format text button
+        document.getElementById('format-text').addEventListener('click', () => {
+            this.formatOCRText();
+        });
+    }
+    
+    switchOCRTab(tabName) {
+        // Update buttons
+        document.querySelectorAll('.ocr-tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+    
+        // Update content
+        document.querySelectorAll('.ocr-tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        document.getElementById(`${tabName}-tab`).classList.add('active');
+    
+        // Update content for specific tabs
+        if (tabName === 'preview') {
+            this.updateOCRPreview();
+        } else if (tabName === 'raw') {
+            document.getElementById('raw-text').value = 
+                document.getElementById('extracted-text').value;
+        }
+    }
+    
+    toggleInputPreview() {
+        const preview = document.getElementById('input-preview');
+        if (preview.style.display === 'none') {
+            preview.style.display = 'block';
+            this.updateInputPreview();
+        } else {
+            preview.style.display = 'none';
+        }
+    }
+    
+    hideInputPreview() {
+        document.getElementById('input-preview').style.display = 'none';
+    }
+    
+    updateInputPreview() {
+        const input = document.getElementById('chat-input');
+        const preview = document.getElementById('preview-content');
+        
+        if (input.value.trim()) {
+            preview.innerHTML = this.md2html(input.value);
+            this.rerenderMathJax();
+        } else {
+            preview.innerHTML = '<em class="text-muted">Type something to see preview...</em>';
+        }
+    }
+    
+    updateOCRPreview() {
+        const extractedText = document.getElementById('extracted-text');
+        const previewContent = document.getElementById('ocr-preview-content');
+        
+        if (extractedText.value.trim()) {
+            previewContent.innerHTML = this.md2html(extractedText.value);
+            this.rerenderMathJax();
+        } else {
+            previewContent.innerHTML = '<em class="text-muted">No text to preview</em>';
+        }
+    }
+    
+    formatOCRText() {
+        const textarea = document.getElementById('extracted-text');
+        const text = textarea.value;
+        
+        // Simple formatting for Vietnamese and math
+        let formatted = text
+            .replace(/(\d+)\/(\d+)/g, '$$\\frac{$1}{$2}$$') // Fractions
+            .replace(/(\w)\^(\d+)/g, '$1^{$2}') // Exponents
+            .replace(/(\w)_(\d+)/g, '$1_{$2}') // Subscripts
+            .replace(/sqrt\(([^)]+)\)/g, '$$\\sqrt{$1}$$'); // Square roots
+        
+        textarea.value = formatted;
+        this.updateOCRPreview();
+    }
+
     setupEventListeners() {
         // Send message
         document.getElementById('send-message').addEventListener('click', () => {
@@ -52,6 +178,9 @@ class MathChat {
         // New chat
         document.getElementById('new-chat-btn').addEventListener('click', () => {
             this.startNewChat();
+            if (this.isMobile) {
+                this.closeSidebar();
+            }
         });
 
         // Clear chat
@@ -69,23 +198,32 @@ class MathChat {
             this.toggleSidebar();
         });
 
-        // Image upload
+        // Upload options
         document.getElementById('upload-image-btn').addEventListener('click', () => {
-            document.getElementById('image-upload').click();
+            document.getElementById('gallery-upload').click();
         });
 
-        document.getElementById('image-upload').addEventListener('change', (e) => {
+        document.getElementById('scan-image-btn').addEventListener('click', () => {
+            document.getElementById('camera-upload').click();
+        });
+
+        // File uploads
+        document.getElementById('gallery-upload').addEventListener('change', (e) => {
             this.handleImageUpload(e);
         });
 
-        // Example questions
-        document.querySelectorAll('.example-chip').forEach(chip => {
-            chip.addEventListener('click', (e) => {
-                const question = e.target.dataset.question;
-                document.getElementById('chat-input').value = question;
-                this.sendMessage();
-            });
+        document.getElementById('camera-upload').addEventListener('change', (e) => {
+            this.handleImageUpload(e);
         });
+
+        const chatInput = document.getElementById('chat-input');
+        chatInput.addEventListener('focus', () => {
+            // Ensure proper alignment when focused
+            document.querySelector('.input-wrapper').style.alignItems = 'center';
+        });
+
+        // Example questions
+        this.setupExampleQuestions();
 
         // OCR Modal events
         this.setupOCRModalEvents();
@@ -95,6 +233,74 @@ class MathChat {
 
         // Theme change handler
         this.setupThemeHandler();
+
+        // Mobile overlay
+        // this.setupMobileOverlay();
+        document.addEventListener('click', (e) => {
+            if (this.isMobile && this.isSidebarOpen) {
+                const sidebar = document.querySelector('.chat-sidebar');
+                const toggleBtn = document.getElementById('sidebar-toggle');
+                
+                // Check if click is outside sidebar and not on toggle button
+                if (!sidebar.contains(e.target) && !toggleBtn.contains(e.target)) {
+                    this.closeSidebar();
+                }
+            }
+        });
+    }
+
+    setupMobileGestures() {
+        const sidebar = document.querySelector('.chat-sidebar');
+        
+        sidebar.addEventListener('touchstart', (e) => {
+            this.touchStartX = e.touches[0].clientX;
+        });
+    
+        sidebar.addEventListener('touchmove', (e) => {
+            if (!this.isSidebarOpen) return;
+            
+            const currentX = e.touches[0].clientX;
+            const diff = this.touchStartX - currentX;
+            
+            if (diff > 50) { // Swipe left to close
+                this.closeSidebar();
+            }
+        });
+    }
+
+    closeSidebar() {
+        this.isSidebarOpen = false;
+        this.updateSidebarVisibility();
+    }
+    
+    updateSidebarVisibility() {
+        const sidebar = document.querySelector('.chat-sidebar');
+        
+        if (this.isSidebarOpen) {
+            sidebar.classList.add('open');
+            document.body.style.overflow = 'hidden';
+        } else {
+            sidebar.classList.remove('open');
+            document.body.style.overflow = '';
+        }
+    }
+
+    // setupMobileOverlay() {
+    //     const overlay = document.getElementById('sidebar-overlay');
+    //     overlay.addEventListener('click', () => {
+    //         this.closeSidebar();
+    //     });
+    // }
+
+    setupExampleQuestions() {
+        // Delegate event handling since example questions might be recreated
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('example-chip')) {
+                const question = e.target.dataset.question;
+                document.getElementById('chat-input').value = question;
+                this.sendMessage();
+            }
+        });
     }
 
     setupOCRModalEvents() {
@@ -113,6 +319,8 @@ class MathChat {
             if (extractedText.trim()) {
                 this.closeOCRModal();
                 this.sendOCRMessage(extractedText);
+            } else {
+                alert('Please extract text first or enter a message.');
             }
         });
 
@@ -134,18 +342,53 @@ class MathChat {
                 this.closeOCRModal();
             }
         });
+
+        // ESC key to close modal
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modal.style.display === 'block') {
+                this.closeOCRModal();
+            }
+        });
     }
 
     setupTextareaAutoResize() {
         const textarea = document.getElementById('chat-input');
         textarea.addEventListener('input', function() {
             this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            const newHeight = Math.min(this.scrollHeight, 120);
+            this.style.height = newHeight + 'px';
+            
+            // Maintain center alignment
+            const inputWrapper = this.closest('.input-wrapper');
+            if (inputWrapper) {
+                if (newHeight > 56) { // If multi-line
+                    inputWrapper.style.alignItems = 'flex-end';
+                } else { // If single line
+                    inputWrapper.style.alignItems = 'center';
+                }
+            }
         });
+    
+        // Reset to center alignment when input is cleared
+        textarea.addEventListener('change', function() {
+            if (!this.value.trim()) {
+                const inputWrapper = this.closest('.input-wrapper');
+                if (inputWrapper) {
+                    inputWrapper.style.alignItems = 'center';
+                    this.style.height = 'auto';
+                }
+            }
+        });
+    
+        // Focus on input when clicking on chat area (mobile)
+        if (this.isMobile) {
+            document.querySelector('.chat-messages').addEventListener('click', () => {
+                textarea.focus();
+            });
+        }
     }
 
     setupThemeHandler() {
-        // Observe theme changes and re-render MathJax
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.attributeName === 'class') {
@@ -169,6 +412,7 @@ class MathChat {
             }
         } catch (error) {
             console.error('Failed to load conversations:', error);
+            this.showError('Failed to load conversations. Please refresh the page.');
         }
     }
 
@@ -199,6 +443,9 @@ class MathChat {
             item.addEventListener('click', () => {
                 const conversationId = item.dataset.conversationId;
                 this.loadConversation(conversationId);
+                if (this.isMobile) {
+                    this.closeSidebar();
+                }
             });
         });
     }
@@ -212,14 +459,12 @@ class MathChat {
                 this.renderMessages(data.messages);
                 this.updateChatTitle();
                 this.renderConversations();
-                
-                if (window.innerWidth <= 768) {
-                    this.isSidebarOpen = false;
-                    this.updateSidebarVisibility();
-                }
+            } else {
+                throw new Error('Failed to load conversation');
             }
         } catch (error) {
             console.error('Failed to load conversation:', error);
+            this.showError('Failed to load conversation. Please try again.');
         }
     }
 
@@ -227,7 +472,10 @@ class MathChat {
         const input = document.getElementById('chat-input');
         const message = input.value.trim();
 
-        if (!message) return;
+        if (!message) {
+            this.showError('Please enter a message first.');
+            return;
+        }
 
         // Clear input and reset height
         input.value = '';
@@ -288,13 +536,13 @@ class MathChat {
 
         // Check if file is an image
         if (!file.type.startsWith('image/')) {
-            alert('Please upload an image file (JPEG, PNG, etc.).');
+            this.showError('Please upload an image file (JPEG, PNG, etc.).');
             return;
         }
 
         // Check file size (max 10MB)
         if (file.size > 10 * 1024 * 1024) {
-            alert('Image size should be less than 10MB.');
+            this.showError('Image size should be less than 10MB.');
             return;
         }
 
@@ -306,10 +554,14 @@ class MathChat {
         };
 
         reader.onerror = () => {
-            alert('Failed to read the image file. Please try again.');
+            this.showError('Failed to read the image file. Please try again.');
         };
 
         reader.readAsDataURL(file);
+        
+        // Reset file inputs
+        document.getElementById('gallery-upload').value = '';
+        document.getElementById('camera-upload').value = '';
     }
 
     showOCRModal(imageData) {
@@ -335,21 +587,18 @@ class MathChat {
         const modal = document.getElementById('ocr-preview-modal');
         modal.style.display = 'none';
         this.currentImageData = null;
-        
-        // Reset file input
-        document.getElementById('image-upload').value = '';
     }
 
     async extractTextFromImage(imageData) {
         const extractedText = document.getElementById('extracted-text');
         const sendBtn = document.getElementById('send-ocr-text');
         const retryBtn = document.getElementById('retry-ocr');
-
+    
         // Show loading state
         extractedText.value = '🔄 Extracting text from image...';
         sendBtn.disabled = true;
         retryBtn.disabled = true;
-
+    
         try {
             const response = await fetch('/api/ocr/extract-text', {
                 method: 'POST',
@@ -358,22 +607,22 @@ class MathChat {
                 },
                 body: JSON.stringify({ image_data: imageData })
             });
-
+    
             const result = await response.json();
-
+    
             if (!response.ok || !result.success) {
                 throw new Error(result.error || 'OCR failed');
             }
-
+    
             // Display extracted text
             extractedText.value = result.text || 'No text could be extracted from the image.';
             sendBtn.disabled = !result.text.trim();
             retryBtn.disabled = false;
-
+    
             if (result.text.trim()) {
-                extractedText.setAttribute('readonly', false);
+                extractedText.removeAttribute('readonly');
             }
-
+    
         } catch (error) {
             console.error('OCR Error:', error);
             extractedText.value = `❌ Failed to extract text: ${error.message}\n\nPlease try again with a clearer image.`;
@@ -437,8 +686,8 @@ class MathChat {
         messagesContainer.innerHTML = '';
 
         if (messages.length === 0) {
-            // Show welcome message
-            messagesContainer.innerHTML = document.querySelector('.welcome-message').outerHTML;
+            // Use the createWelcomeMessage method instead of trying to clone from DOM
+            messagesContainer.innerHTML = this.createWelcomeMessage();
             
             // Re-add event listeners for example chips
             messagesContainer.querySelectorAll('.example-chip').forEach(chip => {
@@ -455,6 +704,59 @@ class MathChat {
         messages.forEach(message => {
             this.addMessage(message.role, message.content);
         });
+    }
+
+    createWelcomeMessage() {
+        return `
+            <div class="welcome-message">
+                <div class="welcome-icon">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <h1>Hello! I'm Your AI Math Tutor</h1>
+                <p class="welcome-subtitle">I can help you with any math problem. Type your question or upload an image!</p>
+                
+                <div class="features-grid">
+                    <div class="feature-item">
+                        <i class="fas fa-camera"></i>
+                        <h4>Image to Text</h4>
+                        <p>Upload images of math problems</p>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-code"></i>
+                        <h4>LaTeX Support</h4>
+                        <p>Beautiful math rendering</p>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-list-ol"></i>
+                        <h4>Step-by-Step</h4>
+                        <p>Detailed explanations</p>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-infinity"></i>
+                        <h4>All Math Topics</h4>
+                        <p>From algebra to calculus</p>
+                    </div>
+                </div>
+    
+                <div class="example-section">
+                    <h3>Try These Examples:</h3>
+                    <div class="example-questions">
+                        <div class="example-chip" data-question="Solve the quadratic equation: x² - 5x + 6 = 0">
+                            Solve: x² - 5x + 6 = 0
+                        </div>
+                        <div class="example-chip" data-question="Explain the Pythagorean theorem with an example">
+                            Pythagorean theorem
+                        </div>
+                        <div class="example-chip" data-question="How do I find the derivative of f(x) = 3x² + 2x - 1?">
+                            Derivative of 3x² + 2x - 1
+                        </div>
+                        <div class="example-chip" data-question="Factor the expression: 2x² + 7x + 3">
+                            Factor 2x² + 7x + 3
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     startNewChat() {
@@ -482,17 +784,19 @@ class MathChat {
                 if (response.ok) {
                     this.startNewChat();
                     await this.loadConversations();
+                } else {
+                    throw new Error('Failed to delete conversation');
                 }
             } catch (error) {
                 console.error('Failed to delete conversation:', error);
-                alert('Failed to delete conversation. Please try again.');
+                this.showError('Failed to delete conversation. Please try again.');
             }
         }
     }
 
     async exportChat() {
         if (!this.currentConversationId) {
-            alert('No conversation to export.');
+            this.showError('No conversation to export.');
             return;
         }
 
@@ -521,10 +825,12 @@ class MathChat {
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
+            } else {
+                throw new Error('Failed to export chat');
             }
         } catch (error) {
             console.error('Export failed:', error);
-            alert('Failed to export chat. Please try again.');
+            this.showError('Failed to export chat. Please try again.');
         }
     }
 
@@ -543,12 +849,23 @@ class MathChat {
         this.updateSidebarVisibility();
     }
 
+    closeSidebar() {
+        this.isSidebarOpen = false;
+        this.updateSidebarVisibility();
+    }
+
     updateSidebarVisibility() {
         const sidebar = document.querySelector('.chat-sidebar');
+        // const overlay = document.getElementById('sidebar-overlay');
+        
         if (this.isSidebarOpen) {
             sidebar.classList.add('open');
+            // overlay.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
         } else {
             sidebar.classList.remove('open');
+            // overlay.classList.remove('active');
+            document.body.style.overflow = ''; // Restore scrolling
         }
     }
 
@@ -558,19 +875,38 @@ class MathChat {
         }
     }
 
-    // Utility functions
+    showError(message) {
+        // Simple error notification
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-notification';
+        errorDiv.innerHTML = `
+            <div class="error-content">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>${message}</span>
+            </div>
+        `;
+        
+        document.body.appendChild(errorDiv);
+        
+        // Remove after 5 seconds
+        setTimeout(() => {
+            if (errorDiv.parentNode) {
+                errorDiv.parentNode.removeChild(errorDiv);
+            }
+        }, 5000);
+    }
+
+    // Utility functions (keep the existing ones)
     md2html(md) {
-        // Configure marked for math support
         marked.setOptions({
             breaks: true,
             gfm: true,
-            sanitize: false // We'll use DOMPurify instead
+            sanitize: false
         });
 
         const raw = marked.parse(md);
         const clean = DOMPurify.sanitize(raw);
         
-        // Schedule MathJax rendering after the message is added
         setTimeout(() => {
             this.rerenderMathJax();
         }, 100);

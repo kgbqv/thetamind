@@ -25,6 +25,8 @@ import uuid
 from datetime import datetime
 import re
 import time
+import io
+import base64
 
 load_dotenv()
 
@@ -216,7 +218,7 @@ def update_user_coins(username: str, coins_delta: int, allow_negative: bool = Fa
     return new_balance
 
 def preprocess_image_for_ocr(image):
-    """Enhanced preprocessing for math symbols"""
+    """Enhanced preprocessing for Vietnamese text and math symbols"""
     # Convert to grayscale
     if image.mode != 'L':
         image = image.convert('L')
@@ -224,13 +226,32 @@ def preprocess_image_for_ocr(image):
     # Convert to numpy array for OpenCV processing
     img_array = np.array(image)
     
-    # Apply Gaussian blur to reduce noise
-    img_array = cv2.GaussianBlur(img_array, (3, 3), 0)
+    # Different preprocessing approaches for different image types
     
-    # Apply adaptive thresholding
-    img_array = cv2.adaptiveThreshold(
-        img_array, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
-    )
+    # Method 1: For clean text
+    try:
+        # Apply mild Gaussian blur to reduce noise
+        img_array = cv2.GaussianBlur(img_array, (1, 1), 0)
+        
+        # Try different thresholding methods
+        # Method A: Adaptive thresholding
+        img_thresh = cv2.adaptiveThreshold(
+            img_array, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+        )
+        
+        # Method B: Otsu's thresholding
+        _, img_otsu = cv2.threshold(img_array, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # Choose the method that gives more black pixels (likely better for text)
+        if np.sum(img_thresh == 0) > np.sum(img_otsu == 0):
+            img_array = img_thresh
+        else:
+            img_array = img_otsu
+            
+    except Exception as e:
+        print(f"Advanced preprocessing failed: {e}")
+        # Fallback to simple thresholding
+        _, img_array = cv2.threshold(img_array, 128, 255, cv2.THRESH_BINARY)
     
     # Convert back to PIL Image
     image = Image.fromarray(img_array)
@@ -239,17 +260,13 @@ def preprocess_image_for_ocr(image):
     enhancer = ImageEnhance.Contrast(image)
     image = enhancer.enhance(2.0)
     
-    # Enhance sharpness
-    enhancer = ImageEnhance.Sharpness(image)
-    image = enhancer.enhance(1.5)
-    
     return image
 
 def clean_ocr_text(text):
     """Enhanced cleaning for math OCR with LaTeX conversion"""
     # Remove extra whitespace but preserve line breaks for multi-line problems
-    text = re.sub(r' +', ' ', text)
-    text = re.sub(r'\n\s*\n', '\n', text)
+    text = re.sub(r' +', ' ', text)  # Ensure raw string
+    text = re.sub(r'\n\s*\n', '\n', text)  # Ensure raw string
     
     # Common OCR corrections for math symbols with LaTeX equivalents
     replacements = {
@@ -309,6 +326,178 @@ def clean_ocr_text(text):
     text = convert_math_patterns_to_latex(text)
     
     return text.strip()
+
+def preprocess_image_for_vietnamese(image):
+    """Enhanced preprocessing specifically for Vietnamese text with math symbols"""
+    # Convert to grayscale
+    if image.mode != 'L':
+        image = image.convert('L')
+    
+    # Convert to numpy array for OpenCV processing
+    img_array = np.array(image)
+    
+    # Simple preprocessing - avoid complex operations that might cause issues
+    try:
+        # Apply Gaussian blur to reduce noise
+        img_array = cv2.GaussianBlur(img_array, (1, 1), 0)
+        
+        # Use Otsu's thresholding
+        _, img_array = cv2.threshold(img_array, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+    except Exception as e:
+        print(f"Preprocessing error: {e}")
+        # Fallback to simple thresholding
+        _, img_array = cv2.threshold(img_array, 128, 255, cv2.THRESH_BINARY)
+    
+    # Convert back to PIL Image
+    image = Image.fromarray(img_array)
+    
+    # Enhance contrast for better Vietnamese character recognition
+    enhancer = ImageEnhance.Contrast(image)
+    image = enhancer.enhance(2.0)
+    
+    return image
+
+def convert_math_patterns_to_latex(text):
+    """Convert common math patterns to LaTeX format safely"""
+    try:
+        # Convert fractions: a/b to \frac{a}{b}
+        text = re.sub(r'(\d+)/(\d+)', r'\\frac{\1}{\2}', text)
+        
+        # Convert exponents: x^2 to x^{2}
+        text = re.sub(r'(\w)\^(\d+)', r'\1^{\2}', text)
+        
+        # Convert subscripts: x_1 to x_{1}
+        text = re.sub(r'(\w)_(\d+)', r'\1_{\2}', text)
+        
+        # Convert square roots: sqrt(x) to \sqrt{x}
+        text = re.sub(r'sqrt\(([^)]+)\)', r'\\sqrt{\1}', text)
+        
+        # Convert common functions - FIXED: use raw strings and word boundaries
+        text = re.sub(r'\bsin\b', r'\\sin', text)
+        text = re.sub(r'\bcos\b', r'\\cos', text)
+        text = re.sub(r'\btan\b', r'\\tan', text)
+        text = re.sub(r'\blog\b', r'\\log', text)
+        text = re.sub(r'\bln\b', r'\\ln', text)
+        text = re.sub(r'\blim\b', r'\\lim', text)
+        
+        return text
+    except Exception as e:
+        print(f"LaTeX conversion error: {e}")
+        return text  # Return original text if conversion fails
+
+def clean_vietnamese_math_text(text):
+    """Enhanced cleaning for Vietnamese text with math symbol preservation"""
+    if not text:
+        return ""
+    
+    # Vietnamese character ranges and common diacritics
+    vietnamese_chars = r'a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝàáâãèéêìíòóôõùúýĂăĐđĨĩŨũƠơƯưẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặẸẹẺẻẼẽẾếỀềỂểỄễỆệỈỉỊịỌọỎỏỐốỒồỔổỖỗỘộỚớỜờỞởỠỡỢợỤụỦủỨứỪừỬửỮữỰựỲỳỴỵỶỷỸỹ'
+    
+    # Preserve Vietnamese characters, math symbols, and common punctuation
+    allowed_chars = vietnamese_chars + r'0-9\s\.\,\!\?\:\;\-\+\\=\*\/\(\)\[\]\{\}\^\_\<\>\|\&\$\%\@\#\~'
+    
+    # Remove unwanted characters but preserve Vietnamese and math
+    cleaned_text = re.sub(f'[^{allowed_chars}]', ' ', text)
+    
+    # Clean up whitespace
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
+    
+    # Common Vietnamese OCR corrections
+    vietnamese_corrections = {
+        # Common OCR mistakes for Vietnamese
+        'ﬁ': 'fi', 'ﬂ': 'fl', 'ﬀ': 'ff', 'ﬃ': 'ffi', 'ﬄ': 'ffl',
+        '“': '"', '”': '"', '‘': "'", '’': "'", '´': "'", '`': "'",
+        '…': '...', '–': '-', '—': '-', '~': '~',
+        
+        # Vietnamese specific corrections
+        'ê': 'ê', 'ô': 'ô', 'ơ': 'ơ', 'ư': 'ư', 'ă': 'ă', 'đ': 'đ',
+        'Â': 'Â', 'Ê': 'Ê', 'Ô': 'Ô', 'Ơ': 'Ơ', 'Ư': 'Ư', 'Ă': 'Ă', 'Đ': 'Đ',
+    }
+    
+    for wrong, correct in vietnamese_corrections.items():
+        cleaned_text = cleaned_text.replace(wrong, correct)
+    
+    return cleaned_text.strip()
+
+def format_ocr_output(text):
+    """Format OCR output with Markdown and LaTeX support"""
+    if not text:
+        return ""
+    
+    lines = text.split('\n')
+    formatted_lines = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Check if line contains math patterns
+        has_math = any(pattern in line for pattern in ['=', '+', '-', '*', '/', '^', '_', 'sqrt', 'frac'])
+        
+        if has_math:
+            # Apply safe LaTeX conversion
+            try:
+                line = convert_math_patterns_to_latex(line)
+                # Wrap math expressions in $ for inline or $$ for block
+                if len(line) > 50 or '\n' in line:
+                    line = f"$$\n{line}\n$$"
+                else:
+                    line = f"${line}$"
+            except Exception as e:
+                print(f"Math formatting error: {e}")
+                # Keep original if conversion fails
+        
+        formatted_lines.append(line)
+    
+    # Join with Markdown formatting
+    formatted_text = '\n\n'.join(formatted_lines)
+    
+    # Add Markdown header if multiple lines
+    if len(formatted_lines) > 1:
+        formatted_text = f"**Extracted Text:**\n\n{formatted_text}"
+    
+    return formatted_text
+
+def format_ocr_output(text):
+    """Format OCR output with Markdown and LaTeX support"""
+    if not text:
+        return ""
+    
+    lines = text.split('\n')
+    formatted_lines = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Check if line contains math patterns
+        has_math = any(pattern in line for pattern in ['=', '+', '-', '*', '/', '^', '_', 'sqrt', 'frac'])
+        
+        if has_math:
+            # Apply safe LaTeX conversion
+            try:
+                line = convert_math_patterns_to_latex(line)
+                # Wrap math expressions in $ for inline or $$ for block
+                if len(line) > 50 or '\n' in line:
+                    line = f"$$\n{line}\n$$"
+                else:
+                    line = f"${line}$"
+            except:
+                pass  # Keep original if conversion fails
+        
+        formatted_lines.append(line)
+    
+    # Join with Markdown formatting
+    formatted_text = '\n\n'.join(formatted_lines)
+    
+    # Add Markdown header if multiple lines
+    if len(formatted_lines) > 1:
+        formatted_text = f"**Extracted Text:**\n\n{formatted_text}"
+    
+    return formatted_text
 
 def convert_math_patterns_to_latex(text):
     """Convert common math patterns to LaTeX format"""
@@ -1039,7 +1228,7 @@ async def send_chat_message(chat_request: ChatRequest, request: Request):
         print(f"Chat error: {str(e)}")
         return JSONResponse(content={"error": "Failed to process message"}, status_code=500)
 
-# Enhanced OCR endpoint with confidence scoring
+# Enhanced OCR endpoint with Vietnamese and math support
 @app.post("/api/ocr/extract-text", response_model=OCRResponse)
 async def extract_text_from_image(request: OCRRequest):
     try:
@@ -1053,43 +1242,59 @@ async def extract_text_from_image(request: OCRRequest):
         image_bytes = base64.b64decode(image_data)
         image = Image.open(io.BytesIO(image_bytes))
         
+        print(f"Image info: {image}")  # Debug log
+        
         # Get image dimensions for quality assessment
         width, height = image.size
         if width < 100 or height < 100:
             return OCRResponse(text="", success=False, error="Image too small for OCR")
         
-        # Preprocess image for better OCR
-        processed_image = preprocess_image_for_ocr(image)
+        # Enhanced preprocessing for Vietnamese text
+        processed_image = preprocess_image_for_vietnamese(image)
         
-        # Configure Tesseract for math symbols
-        custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ()[]{}<>+-=*/\\|^_~!@#$%&.,:;?°²³αβγδϵζηθικλμνξπρστυϕχψωΓΔΘΛΞΠΣΦΨΩ∞∂∇∫∑∏√∛∜≤≥≠≈±∓×÷∈∉⊂⊃⊆⊇∪∩∅∀∃∄∴∵→←↔⇒⇐⇔↦⟨⟩'
+        # Try multiple OCR configurations - SIMPLIFIED to avoid regex issues
+        configs_to_try = [
+            '--oem 3 --psm 6',  # Uniform block of text
+            '--oem 3 --psm 4',  # Single column of text
+        ]
         
-        # Extract text using Tesseract with confidence
-        data = pytesseract.image_to_data(processed_image, config=custom_config, output_type=pytesseract.Output.DICT)
+        best_text = ""
+        best_confidence = 0
         
-        # Calculate average confidence
-        confidences = [int(conf) for conf in data['conf'] if int(conf) > 0]
-        avg_confidence = sum(confidences) / len(confidences) if confidences else 0
+        for config in configs_to_try:
+            try:
+                # Use simpler approach without complex whitelist
+                current_text = pytesseract.image_to_string(processed_image, config=config, lang='vie+eng')
+                
+                if current_text.strip():
+                    best_text = current_text
+                    break
+                    
+            except Exception as e:
+                print(f"Config {config} failed: {e}")
+                continue
         
-        # Extract text with reasonable confidence
-        text_parts = []
-        for i in range(len(data['text'])):
-            if int(data['conf'][i]) > 30:  # Reasonable confidence threshold
-                text_parts.append(data['text'][i])
+        # Fallback: try without language specification
+        if not best_text.strip():
+            try:
+                best_text = pytesseract.image_to_string(processed_image, config='--psm 6')
+            except:
+                best_text = pytesseract.image_to_string(processed_image)
         
-        raw_text = ' '.join(text_parts)
+        print(f"BEST_TEXT: {best_text}")  # Debug log
         
-        # Clean and enhance the text
-        cleaned_text = clean_ocr_text(raw_text)
+        # Enhanced cleaning for Vietnamese and math
+        cleaned_text = clean_vietnamese_math_text(best_text)
         
-        # Add confidence information
-        if avg_confidence < 50:
-            cleaned_text += f"\n\n⚠️ Low confidence ({avg_confidence:.1f}%). Please verify the extracted text."
+        # Format with Markdown and LaTeX
+        formatted_text = format_ocr_output(cleaned_text)
         
-        return OCRResponse(text=cleaned_text, success=True)
+        return OCRResponse(text=formatted_text, success=True)
         
     except Exception as e:
         print(f"OCR Error: {str(e)}")
+        import traceback
+        print(f"Full traceback: {traceback.format_exc()}")
         return OCRResponse(text="", success=False, error=str(e))
 
 @app.get("/api/chat/conversations")
