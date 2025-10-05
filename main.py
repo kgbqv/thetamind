@@ -1,5 +1,6 @@
 # main.py
 import os
+import smtplib
 from fastapi import FastAPI, UploadFile, File, Form, Request, Depends, HTTPException, status, Response
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -66,6 +67,23 @@ oauth.register(
     client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
     client_kwargs={'scope': 'openid email profile'}
 )
+
+def send_email(to_email: str, subject: str, body: str):
+    smtp_app_password = os.getenv("SMTP_APP_PASSWORD")
+    smtp_email = os.getenv("SMTP_EMAIL")
+    if not smtp_app_password or not smtp_email:
+        print("SMTP credentials not set. Skipping email sending.")
+        return
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.ehlo()
+            server.login(smtp_email, smtp_app_password)
+            message = f"From: {smtp_email}\nTo: {to_email}\nSubject: {subject}\n\n{body}"
+            server.sendmail(smtp_email, to_email, message)
+            print(f"Email sent to {to_email}")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+
 
 # --- Database Initialization ---
 def db_init():
