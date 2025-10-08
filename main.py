@@ -28,6 +28,7 @@ import re
 import time
 import io
 import base64
+from email_helper import register_email
 
 load_dotenv()
 
@@ -750,6 +751,8 @@ async def register_user(request: Request, username: str = Form(...), email: str 
     try:
         cur.execute("INSERT INTO users (username, email, hashed_password) VALUES (?, ?, ?)",
                     (username, email, hashed_password))
+        email_subject, email_body = register_email(username)
+        send_email(email, email_subject, email_body)
         conn.commit()
     except sqlite3.IntegrityError:
         return templates.TemplateResponse("register.html", {"request": request, "error": "Username or email already exists."})
@@ -796,6 +799,8 @@ async def auth(request: Request):
             hashed_password = get_password_hash(dummy_password)
             cur.execute("INSERT INTO users (username, email, oauth_provider, oauth_id, hashed_password) VALUES (?, ?, 'google', ?, ?)",
                         (user_info['name'], user_info['email'], user_info['sub'], hashed_password))
+            email_subject, email_body = register_email(user_info['name'])
+            send_email(user_info['email'], email_subject, email_body)
             conn.commit()
         user = cur.execute("SELECT * FROM users WHERE email=?", (user_info['email'],)).fetchone()
         conn.close()

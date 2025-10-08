@@ -16,6 +16,7 @@
     --error-color: #ff4d4d;
     --card-bg: linear-gradient(145deg, #1c1c3c, #161630);
     --banner-bg: linear-gradient(135deg, #0d0d2bde, #1a1a3af3);
+    --text-muted: #aaaaaa;
 }
 
 body.light-mode {
@@ -31,6 +32,7 @@ body.light-mode {
     --error-color: #d90404;
     --card-bg: #ffffff;
     --banner-bg: linear-gradient(135deg, #f4f7fcc9, #e0e5ece3);
+    --text-muted: #666666;
 }
 
 /* ... (keep body, container, navbar, banner, buttons, sections, features, footer, auth forms from previous version) ... */
