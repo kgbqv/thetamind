@@ -1,5 +1,6 @@
 # main.py
 import os
+import smtplib
 from fastapi import FastAPI, UploadFile, File, Form, Request, Depends, HTTPException, status, Response
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -27,6 +28,7 @@ import re
 import time
 import io
 import base64
+from email_helper import register_email
 
 load_dotenv()
 
@@ -66,6 +68,23 @@ oauth.register(
     client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
     client_kwargs={'scope': 'openid email profile'}
 )
+
+def send_email(to_email: str, subject: str, body: str):
+    smtp_app_password = os.getenv("SMTP_APP_PASSWORD")
+    smtp_email = os.getenv("SMTP_EMAIL")
+    if not smtp_app_password or not smtp_email:
+        print("SMTP credentials not set. Skipping email sending.")
+        return
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.ehlo()
+            server.login(smtp_email, smtp_app_password)
+            message = f"From: {smtp_email}\nTo: {to_email}\nSubject: {subject}\n\n{body}"
+            server.sendmail(smtp_email, to_email, message)
+            print(f"Email sent to {to_email}")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+
 
 # --- Database Initialization ---
 def db_init():
@@ -732,6 +751,8 @@ async def register_user(request: Request, username: str = Form(...), email: str 
     try:
         cur.execute("INSERT INTO users (username, email, hashed_password) VALUES (?, ?, ?)",
                     (username, email, hashed_password))
+        email_subject, email_body = register_email(username)
+        send_email(email, email_subject, email_body)
         conn.commit()
     except sqlite3.IntegrityError:
         return templates.TemplateResponse("register.html", {"request": request, "error": "Username or email already exists."})
@@ -778,6 +799,8 @@ async def auth(request: Request):
             hashed_password = get_password_hash(dummy_password)
             cur.execute("INSERT INTO users (username, email, oauth_provider, oauth_id, hashed_password) VALUES (?, ?, 'google', ?, ?)",
                         (user_info['name'], user_info['email'], user_info['sub'], hashed_password))
+            email_subject, email_body = register_email(user_info['name'])
+            send_email(user_info['email'], email_subject, email_body)
             conn.commit()
         user = cur.execute("SELECT * FROM users WHERE email=?", (user_info['email'],)).fetchone()
         conn.close()

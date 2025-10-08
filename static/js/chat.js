@@ -1,3 +1,4 @@
+
 class MathChat {
     constructor() {
         this.currentConversationId = null;
