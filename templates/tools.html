@@ -34,9 +34,15 @@
                 </div>
             </div>
         </div>
-    </nav>
+    </nav>    
 
     <main class="page-content">
+        <section class="introduction">
+            <div class="container">
+                <h2>Unlock Your Math Potential</h2>
+                <p style="text-align: center;">Explore AI-powered tools and interactive lessons to strengthen your understanding — from algebra to advanced concepts.</p>
+            </div>
+        </section>
         <section id="topics" class="topics-section">
             <div class="container">
                 <h2>Choose Your Path</h2>
@@ -66,5 +72,42 @@
     </footer>
     <!-- <script src="/static/js/tools.js"></script> -->
     <script src="/static/js/script.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true,
+                processEnvironments: true
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+                renderActions: {
+                    addMenu: [0, '', '']
+                },
+                scale: 0.85
+            },
+            startup: {
+                typeset: false
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script type="text/x-mathjax-config">
+        MathJax.Hub.Config({
+            displayAlign: "left",
+            tex2jax: {
+                inlineMath: [ ['\\(','\\)'] ],
+                displayMath: [ ['\\[','\\]'] ],
+            },
+              CommonHTML: { linebreaks: { automatic: true } },
+            "HTML-CSS": { linebreaks: { automatic: true } },
+            SVG: { linebreaks: { automatic: true } },
+            TeX: {extensions: ['AMSmath.js', 'AMSsymbols.js']}
+        });
+    </script>
+        
+    <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/latest.js?config=default"></script>
+        
 </body>
 </html>

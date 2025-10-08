@@ -6,6 +6,8 @@ class MathChat {
         this.isSidebarOpen = window.innerWidth > 768;
         this.currentImageData = null;
         this.isMobile = this.checkMobile();
+        this.mathJaxLoaded = false;
+        this.mathJaxQueue = [];
         this.init();
     }
 
@@ -22,41 +24,173 @@ class MathChat {
         this.setupMobileFeatures();
         this.setupPreviewFeatures();
 
-        // setTimeout(() => this.rerenderMathJax(), 500);
-        if (window.MathJax && window.MathJax.startup && window.MathJax.startup.promise) {
-            window.MathJax.startup.promise.then(() => {
-                // This executes only after MathJax is fully loaded and configured.
-                this.rerenderMathJax(); 
-            }).catch(e => {
-                console.error("MathJax startup promise failed:", e);
-            });
-        } else {
-            // Fallback if MathJax object hasn't even started loading (should be rare)
-            console.warn("Cannot find MathJax.startup. Falling back to load listener.");
-            window.addEventListener('load', () => this.rerenderMathJax());
-        }
+        await this.waitForMathJax();
     }
 
     setupMathJax() {
-        // Configure MathJax for better performance
-        window.MathJax = {
-            tex: {
-                inlineMath: [['$', '$'], ['\\(', '\\)']],
-                displayMath: [['$$', '$$'], ['\\[', '\\]']],
-                processEscapes: true,
-                processEnvironments: true
-            },
-            options: {
-                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
-                renderActions: {
-                    addMenu: [0, '', '']
+        // Only configure if MathJax hasn't been configured yet
+        if (!window.MathJax) {
+            window.MathJax = {
+                tex: {
+                    inlineMath: [['$', '$'], ['\\(', '\\)']],
+                    displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                    processEscapes: true,
+                    processEnvironments: true
                 },
-                scale: 0.85
-            },
-            startup: {
-                typeset: false
+                options: {
+                    skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+                    renderActions: {
+                        addMenu: [0, '', '']
+                    },
+                    scale: 0.85
+                },
+                startup: {
+                    typeset: false,
+                    pageReady: () => {
+                        return Promise.resolve().then(() => {
+                            console.log("MathJax is fully loaded and ready");
+                            this.mathJaxLoaded = true;
+                            // Process any queued render requests
+                            this.processMathJaxQueue();
+                            return window.MathJax.startup.defaultPageReady();
+                        });
+                    }
+                }
+            };
+        }
+    }
+
+    async waitForMathJax() {
+        return new Promise((resolve) => {
+            const maxWaitTime = 10000; // 10 seconds max
+            const startTime = Date.now();
+            
+            const checkMathJax = () => {
+                if (window.MathJax && window.MathJax.typeset) {
+                    console.log("MathJax is ready");
+                    this.mathJaxLoaded = true;
+                    this.processMathJaxQueue();
+                    resolve();
+                } else if (Date.now() - startTime > maxWaitTime) {
+                    console.warn("MathJax loading timeout");
+                    resolve(); // Resolve anyway to avoid blocking
+                } else {
+                    setTimeout(checkMathJax, 100);
+                }
+            };
+
+            // Also listen for the MathJax script load event
+            const mathJaxScript = document.getElementById('MathJax-script');
+            if (mathJaxScript) {
+                mathJaxScript.addEventListener('load', () => {
+                    console.log("MathJax script loaded");
+                    setTimeout(checkMathJax, 100);
+                });
             }
-        };
+
+            checkMathJax();
+        });
+    }
+
+    processMathJaxQueue() {
+        if (this.mathJaxLoaded && this.mathJaxQueue.length > 0) {
+            console.log(`Processing ${this.mathJaxQueue.length} queued MathJax renders`);
+            this.mathJaxQueue.forEach(task => {
+                setTimeout(() => this.rerenderMathJax(task.element), task.delay);
+            });
+            this.mathJaxQueue = [];
+        }
+    }
+
+    queueMathJaxRender(element = null, delay = 100) {
+        this.mathJaxQueue.push({ element, delay });
+        if (this.mathJaxLoaded) {
+            this.processMathJaxQueue();
+        }
+    }
+
+    rerenderMathJax(targetElement = null) {
+        if (!this.mathJaxLoaded) {
+            console.log("MathJax not loaded yet, queuing render request");
+            this.queueMathJaxRender(targetElement, 100);
+            return;
+        }
+
+        if (window.MathJax && window.MathJax.typeset) {
+            console.log("Rerendering MathJax (v3.x)...");
+            
+            try {
+                const elements = targetElement ? [targetElement] : [document.body];
+                window.MathJax.typeset(elements);
+            } catch (e) {
+                console.error("MathJax v3 Typeset error:", e);
+                // Try alternative method
+                this.fallbackMathJaxRender();
+            }
+        } else {
+            console.warn("MathJax.typeset is not available.");
+            this.fallbackMathJaxRender();
+        }
+    }
+
+    fallbackMathJaxRender() {
+        // Alternative rendering methods
+        if (window.MathJax && window.MathJax.tex2chtml) {
+            console.log("Using fallback MathJax rendering");
+            // You could implement manual rendering here if needed
+        }
+        
+        // If KaTeX is available, use it as backup
+        if (window.renderMathInElement) {
+            console.log("Using KaTeX as fallback");
+            window.renderMathInElement(document.body, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false},
+                    {left: '\\(', right: '\\)', display: false},
+                    {left: '\\[', right: '\\]', display: true}
+                ]
+            });
+        }
+    }
+
+    optimizeMathJaxForMobile() {
+        if (this.isMobile && window.MathJax) {
+            // Reduce scale for mobile
+            window.MathJax.options.scale = 0.75;
+        }
+    }
+
+    // Update the addMessage method to use the new queue system
+    addMessage(role, content) {
+        const messagesContainer = document.getElementById('chat-messages');
+        
+        // Remove welcome message if it's the first user message
+        if (role === 'user') {
+            const welcomeMessage = messagesContainer.querySelector('.welcome-message');
+            if (welcomeMessage) {
+                welcomeMessage.remove();
+            }
+        }
+    
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${role}`;
+        
+        if (role === 'assistant') {
+            messageDiv.innerHTML = `<div class="message-content">${this.md2html(content)}</div>`;
+        } else {
+            messageDiv.innerHTML = `<div class="message-content">${this.escapeHtml(content)}</div>`;
+        }
+    
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+        // Use the queue system for MathJax rendering
+        if (role === 'assistant') {
+            this.queueMathJaxRender(messageDiv, 150);
+            // Additional render after a longer delay for complex content
+            this.queueMathJaxRender(messageDiv, 1000);
+        }
     }
 
     setupMobileFeatures() {
@@ -981,9 +1115,8 @@ class MathChat {
         const raw = marked.parse(md);
         const clean = DOMPurify.sanitize(raw);
         
-        setTimeout(() => {
-            this.rerenderMathJax();
-        }, 100);
+        // Queue MathJax rendering instead of direct call
+        this.queueMathJaxRender(null, 100);
         
         return clean;
     }

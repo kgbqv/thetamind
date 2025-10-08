@@ -34,7 +34,7 @@ load_dotenv()
 
 # --- Configuration ---
 DB = "thetamind.db"
-AI_P = os.getenv("AI_PROVIDER", "openai")
+AI_P = os.getenv("AI_PROVIDER", "gemini")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY", "")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY", "")
 SECRET_KEY = os.getenv("SECRET_KEY", "a_very_secret_key")
