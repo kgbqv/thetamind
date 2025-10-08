@@ -1232,3 +1232,100 @@ body.mobile .chat-input-container {
     font-family: monospace;
     resize: vertical;
 }
+
+.math-inline {
+    font-family: 'Times New Roman', serif;
+    font-style: italic;
+    background: var(--primary-light);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    margin: 0 0.1rem;
+}
+
+.math-display {
+    font-family: 'Times New Roman', serif;
+    font-style: italic;
+    background: var(--card-bg);
+    padding: 1rem;
+    border-radius: 8px;
+    margin: 1rem 0;
+    border: 1px solid var(--border-color);
+    text-align: center;
+    overflow-x: auto;
+}
+
+/* KaTeX specific adjustments */
+.katex {
+    font-size: 1.1em !important;
+}
+
+.katex-display {
+    margin: 1rem 0 !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* MathJax specific adjustments */
+.MathJax {
+    font-size: 1.1em !important;
+}
+
+.MathJax_Display {
+    margin: 1rem 0 !important;
+}
+
+/* Mobile math optimizations */
+@media (max-width: 768px) {
+    .katex {
+        font-size: 1em !important;
+    }
+    
+    .math-inline {
+        font-size: 0.9em;
+        padding: 0.05rem 0.2rem;
+    }
+    
+    .math-display {
+        padding: 0.75rem;
+        margin: 0.75rem 0;
+    }
+    
+    .katex-display {
+        margin: 0.75rem 0 !important;
+    }
+}
+
+/* Error states for math rendering */
+.math-error {
+    color: var(--error-color);
+    background: var(--error-light);
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    border: 1px solid var(--error-color);
+    font-family: monospace;
+}
+
+/* Loading state for math */
+.math-loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.renderer-selector {
+    margin-right: 0.5rem;
+}
+
+.renderer-selector select {
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+@media (max-width: 768px) {
+    .renderer-selector {
+        display: none; /* Hide on mobile to save space */
+    }
+}
