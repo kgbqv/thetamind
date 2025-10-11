@@ -869,7 +869,7 @@ body.light-mode .topic-content h3 {
 .dashboard-grid {
     display: grid;
     /* grid-template-columns: 1fr; Single column on mobile */
-    /* grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); */
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 2rem;
 }
 
