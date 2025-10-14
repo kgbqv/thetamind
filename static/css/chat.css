@@ -105,7 +105,7 @@ body.dark-mode #new-chat-btn {
     
     .sidebar-header {
         padding: 0.8rem 1.2rem; /* 80% */
-        margin-top: 4rem; /* 80% of 5rem */
+        margin-top: 5rem; /* 80% of 5rem */
     }
     
     .sidebar-header h2 {
@@ -902,7 +902,7 @@ body.dark-mode .message.user {
     
     .chat-header {
         padding: 0.8rem; /* 80% */
-        margin-top: 4rem; /* 80% */
+        margin-top: 5rem; /* 80% */
     }
     
     .chat-messages {
