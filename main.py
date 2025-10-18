@@ -1200,7 +1200,7 @@ async def evaluate_challenge(request: Request,
     print(f"Received AI response: {ai_response}")
     try:
         evaluation = json.loads(ai_response)
-        is_correct = evaluation.get("is_correct", False)
+        is_correct = not evaluation.get("is_correct", False)
         exp_earned = 0
         badge_earned = None
 
