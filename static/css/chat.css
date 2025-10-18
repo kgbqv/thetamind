@@ -693,6 +693,7 @@ body.dark-mode .message.user {
     font-family: monospace;
     resize: vertical;
     line-height: 1.5;
+    width: 100%
 }
 
 .ocr-actions {
@@ -1034,7 +1035,7 @@ body.mobile .message {
 body.mobile .chat-input-container {
     padding-left: 0.8rem; /* 80% */
     padding-right: 0.8rem; /* 80% */
-    margin-bottom: 2.4rem; /* 80% */
+    margin-bottom: 3.2rem; /* 80% */
 }
 
 /* Preview Styles */

@@ -5,12 +5,14 @@ from fastapi import FastAPI, UploadFile, File, Form, Request, Depends, HTTPExcep
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+import traceback
 from pydantic import BaseModel
 import sqlite3
 import json
 import asyncio
 from dotenv import load_dotenv
 from passlib.context import CryptContext
+# import google.generativeai as genai2
 from typing import Optional
 from starlette.requests import Request
 from starlette.responses import Response
@@ -27,6 +29,7 @@ from datetime import datetime
 import re
 import time
 import io
+# import google
 import base64
 from email_helper import register_email
 
@@ -50,7 +53,8 @@ if AI_P == "openai":
 elif AI_P == "gemini":
     IS_AI_CONFIGURED = bool(GEMINI_KEY)
     if IS_AI_CONFIGURED:
-        from google import genai
+        from google import generativeai as genai
+        genai.configure(api_key=GEMINI_KEY)
 
 # Password Hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -461,9 +465,9 @@ def format_ocr_output(text):
                 line = convert_math_patterns_to_latex(line)
                 # Wrap math expressions in $ for inline or $$ for block
                 if len(line) > 50 or '\n' in line:
-                    line = f"$$\n{line}\n$$"
+                    line = f"\\\\[ \n{line}\n \\]"
                 else:
-                    line = f"${line}$"
+                    line = f"\\\\( {line} \\\\)"
             except Exception as e:
                 print(f"Math formatting error: {e}")
                 # Keep original if conversion fails
@@ -501,9 +505,9 @@ def format_ocr_output(text):
                 line = convert_math_patterns_to_latex(line)
                 # Wrap math expressions in $ for inline or $$ for block
                 if len(line) > 50 or '\n' in line:
-                    line = f"$$\n{line}\n$$"
+                    line = f"\\\\[ \n{line}\n\\\\]"
                 else:
-                    line = f"${line}$"
+                    line = f"\\\\( {line} \\\\)"
             except:
                 pass  # Keep original if conversion fails
         
@@ -645,14 +649,15 @@ async def format_math_text_with_ai(text):
     Instructions:
     1. Keep Vietnamese text as is
     2. Convert mathematical expressions to proper LaTeX format
-    3. Use $ for inline math and $$ for display math
+    3. Use \\\\( ... \\\\) for inline math and \\\\[ ... \\\\] for display math
     4. Preserve the original structure and meaning
     5. Don't add any explanations or notes
-    
+    6. Latex Configuration is to use \\\\( to start or \\\\) to end for inline math and \\\\[ to start or \\\\] to end for display math.
+
     Examples:
-    - "x^2 + 3x + 2 = 0" becomes "$x^2 + 3x + 2 = 0$"
-    - "Giải phương trình x^2 - 5x + 6 = 0" becomes "Giải phương trình $x^2 - 5x + 6 = 0$"
-    - "∫ from 0 to 1 of x dx" becomes "$\\int_0^1 x  dx$"
+    - "x^2 + 3x + 2 = 0" becomes "\\\\( x^2 + 3x + 2 = 0 \\\\)"
+    - "Giải phương trình x^2 - 5x + 6 = 0" becomes "Giải phương trình \\\\( x^2 - 5x + 6 = 0 \\\\)"
+    - "∫ from 0 to 1 of x dx" becomes "\\\\( \\int_0^1 x  dx \\\\)"
     
     Return only the formatted text.
     """
@@ -700,16 +705,80 @@ async def query_ai(prompt: str) -> str:
             except Exception as e:
                 print(f"Error calling OpenAI: {e}")
                 return f"AI_ERR: {e}"
-        elif AI_P == "gemini" and GEMINI_KEY and genai:
+
+        elif AI_P == "gemini" and GEMINI_KEY:
             try:
-                client = genai.Client(api_key=GEMINI_KEY)
-                resp = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt
-                )
-                return resp.text
+                # ✅ Set API key once (if not set already)
+                genai.configure(api_key=GEMINI_KEY)
+
+                # ✅ Use the Gemini model properly
+                model = genai.GenerativeModel("gemini-2.5-flash")
+
+                # ✅ Generate content asynchronously
+                response = await model.generate_content_async(prompt)
+
+                return response.text.strip() if response.text else "No response from Gemini"
             except Exception as e:
+                print(f"Error calling Gemini: {e}")
                 return f"AI_ERR: {e}"
+
+@app.post("/api/ocr/extract-text", response_model=OCRResponse)
+async def extract_text_with_gemini(request: OCRRequest) -> OCRResponse:
+    if not IS_AI_CONFIGURED or AI_P != "gemini":
+        return OCRResponse(text="", success=False, error="Gemini AI provider is not configured.")
+
+    try:
+        # Decode base64 image data
+        if ',' in request.image_data:
+            image_data = request.image_data.split(',')[1]
+        else:
+            image_data = request.image_data
+
+        image_bytes = base64.b64decode(image_data)
+        image = Image.open(io.BytesIO(image_bytes))
+
+        # Validate image size
+        width, height = image.size
+        if width < 100 or height < 100:
+            return OCRResponse(text="", success=False, error="Image too small for OCR")
+
+        # Convert to JPEG in memory
+        jpeg_buffer = io.BytesIO()
+        image.convert("RGB").save(jpeg_buffer, format="JPEG")
+        jpeg_bytes = jpeg_buffer.getvalue()
+
+        # Build Gemini input
+        image_parts = [{"mime_type": "image/jpeg", "data": jpeg_bytes}]
+        prompt_parts = [
+            "You are an expert in OCR. Extract all visible text from the image below. "
+            "Preserve line breaks and formatting as much as possible:\n",
+            "Only return the extracted text, no explanations or additional information.\n",
+            "Math expressions should be formatted in LaTeX.\n",
+            "Latex Configuration is to use \\\\( ... \\\\) for inline math and \\\\[ ... \\\\] for display math.\n",
+            "Format properly for easier to read and edit.\n"
+            "If the text is primarily Vietnamese, keep it in Vietnamese.\n",
+            "If the text is primarily math, format mathematical expressions properly.\n",
+            *image_parts
+        ]
+        # Send request to Gemini
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        response = await model.generate_content_async(prompt_parts)
+
+        # Handle response
+        if hasattr(response, "text") and response.text:
+            return OCRResponse(text=response.text.strip(), success=True)
+        else:
+            return OCRResponse(text="", success=False, error="No text extracted from image.")
+
+    except Exception as e:
+        print("❌ Gemini OCR Error:", str(e))
+        print(traceback.format_exc())
+        return OCRResponse(
+            text="",
+            success=False,
+            error=f"An error occurred: {str(e)}"
+        )
+
 
 async def ai_q(prompt: str) -> str:
     """Helper function to call the appropriate AI provider"""
@@ -1308,7 +1377,6 @@ async def send_chat_message(chat_request: ChatRequest, request: Request):
         # Create new conversation if needed
         if not chat_request.conversation_id:
             conversation_id = str(uuid.uuid4())
-            # Use AI to generate better title
             title = await generate_chat_title(chat_request.message)
             cur.execute(
                 "INSERT INTO chat_conversations (user_id, conversation_id, title) VALUES (?, ?, ?)",
@@ -1316,7 +1384,6 @@ async def send_chat_message(chat_request: ChatRequest, request: Request):
             )
         else:
             conversation_id = chat_request.conversation_id
-            # Update conversation timestamp
             cur.execute(
                 "UPDATE chat_conversations SET updated_at = CURRENT_TIMESTAMP WHERE conversation_id = ?",
                 (conversation_id,)
@@ -1336,7 +1403,6 @@ async def send_chat_message(chat_request: ChatRequest, request: Request):
         )
         history = cur.fetchall()
         
-        # Build context from history
         context_messages = []
         for role, content in history:
             context_messages.append({"role": role, "content": content})
@@ -1356,23 +1422,26 @@ async def send_chat_message(chat_request: ChatRequest, request: Request):
             "Format your response using markdown with:\n"
             "- **Bold** for important concepts\n"
             "- `inline code` for mathematical variables\n"
-            "- $$ for block equations (e.g., $$x = \\frac{{-b \\pm \\sqrt{{b^2 - 4ac}}}}{{2a}}$$)\n"
-            "- $ for inline equations (e.g., $x^2 + y^2 = z^2$)\n"
+            "--------------------------------------\nIMPORTANT!!!\n When using Latex to display math please use \n"
+            "- \\\\[ ... \\\\] for block equations (e.g., \\\\(x = \\frac{{-b \\pm \\sqrt{{b^2 - 4ac}}}}{{2a}}\\\\) )\n"
+            "- \\\\( ... \\\\) for inline equations (e.g., \\\\(x^2 + y^2 = z^2\\\\) )\n"
+            "NO BACKSTICK ` (backtick) from the response in the LATEX\n"
+            "--------------------------------------\n"
             "- Bullet points for steps and explanations\n"
             "- Tables for comparing methods when appropriate\n\n"
             "Be encouraging, patient, and focus on building understanding rather than just giving answers."
         )
 
-
-        # Include conversation history for context
         messages = [{"role": "system", "content": math_prompt}]
         for msg in context_messages:
             messages.append({"role": msg["role"], "content": msg["content"]})
         
-        # Use the last message as the current prompt
         final_prompt = "\n\n".join([msg["content"] for msg in messages])
         
         ai_response = await ai_q(final_prompt)
+        
+        # Sanitize the AI response by removing backticks from LaTeX content
+        ai_response = remove_backticks_from_latex(ai_response)
         
         # Save AI response
         cur.execute(
@@ -1394,83 +1463,89 @@ async def send_chat_message(chat_request: ChatRequest, request: Request):
         print(f"Chat error: {str(e)}")
         return JSONResponse(content={"error": "Failed to process message"}, status_code=500)
 
+# Function to remove backticks from LaTeX content in the AI response
+def remove_backticks_from_latex(response: str) -> str:
+    # Use regex to remove any stray backticks around LaTeX content
+    response = re.sub(r'`', '', response)  # Remove all backticks
+    return response
+
 # Enhanced OCR endpoint with Vietnamese and math support
-@app.post("/api/ocr/extract-text", response_model=OCRResponse)
-async def extract_text_from_image(request: OCRRequest):
-    try:
-        # Remove data URL prefix if present
-        if ',' in request.image_data:
-            image_data = request.image_data.split(',')[1]
-        else:
-            image_data = request.image_data
+# @app.post("/api/ocr/extract-text", response_model=OCRResponse)
+# async def extract_text_from_image(request: OCRRequest):
+#     try:
+#         # Remove data URL prefix if present
+#         if ',' in request.image_data:
+#             image_data = request.image_data.split(',')[1]
+#         else:
+#             image_data = request.image_data
             
-        # Decode base64 image
-        image_bytes = base64.b64decode(image_data)
-        image = Image.open(io.BytesIO(image_bytes))
+#         # Decode base64 image
+#         image_bytes = base64.b64decode(image_data)
+#         image = Image.open(io.BytesIO(image_bytes))
         
-        print(f"Image info: {image}")  # Debug log
+#         print(f"Image info: {image}")  # Debug log
         
-        # Get image dimensions for quality assessment
-        width, height = image.size
-        if width < 100 or height < 100:
-            return OCRResponse(text="", success=False, error="Image too small for OCR")
+#         # Get image dimensions for quality assessment
+#         width, height = image.size
+#         if width < 100 or height < 100:
+#             return OCRResponse(text="", success=False, error="Image too small for OCR")
         
-        # Enhanced preprocessing for different image types
-        processed_image = await enhance_image_for_ocr(image)
+#         # Enhanced preprocessing for different image types
+#         processed_image = await enhance_image_for_ocr(image)
         
-        # Try multiple OCR strategies
-        ocr_results = []
+#         # Try multiple OCR strategies
+#         ocr_results = []
         
-        # Strategy 1: Vietnamese + English
-        try:
-            text_vie = pytesseract.image_to_string(processed_image, lang='vie+eng', config='--oem 3 --psm 6')
-            if text_vie.strip():
-                ocr_results.append(('vie+eng', text_vie))
-        except Exception as e:
-            print(f"Vietnamese OCR failed: {e}")
+#         # Strategy 1: Vietnamese + English
+#         try:
+#             text_vie = pytesseract.image_to_string(processed_image, lang='vie+eng', config='--oem 3 --psm 6')
+#             if text_vie.strip():
+#                 ocr_results.append(('vie+eng', text_vie))
+#         except Exception as e:
+#             print(f"Vietnamese OCR failed: {e}")
         
-        # Strategy 2: English only
-        try:
-            text_eng = pytesseract.image_to_string(processed_image, lang='eng', config='--oem 3 --psm 6')
-            if text_eng.strip():
-                ocr_results.append(('eng', text_eng))
-        except Exception as e:
-            print(f"English OCR failed: {e}")
+#         # Strategy 2: English only
+#         try:
+#             text_eng = pytesseract.image_to_string(processed_image, lang='eng', config='--oem 3 --psm 6')
+#             if text_eng.strip():
+#                 ocr_results.append(('eng', text_eng))
+#         except Exception as e:
+#             print(f"English OCR failed: {e}")
         
-        # Strategy 3: Multiple PSM modes
-        psm_modes = [3, 4, 6, 8, 11]
-        for psm in psm_modes:
-            try:
-                text_psm = pytesseract.image_to_string(processed_image, config=f'--oem 3 --psm {psm}')
-                if text_psm.strip() and len(text_psm) > 10:  # Only consider substantial results
-                    ocr_results.append((f'psm_{psm}', text_psm))
-            except Exception as e:
-                continue
+#         # Strategy 3: Multiple PSM modes
+#         psm_modes = [3, 4, 6, 8, 11]
+#         for psm in psm_modes:
+#             try:
+#                 text_psm = pytesseract.image_to_string(processed_image, config=f'--oem 3 --psm {psm}')
+#                 if text_psm.strip() and len(text_psm) > 10:  # Only consider substantial results
+#                     ocr_results.append((f'psm_{psm}', text_psm))
+#             except Exception as e:
+#                 continue
         
-        # Choose the best result (longest text usually means better recognition)
-        best_text = ""
-        if ocr_results:
-            # Sort by length (longer text usually means better recognition)
-            ocr_results.sort(key=lambda x: len(x[1]), reverse=True)
-            best_text = ocr_results[0][1]
-            print(f"Best OCR result from {ocr_results[0][0]}: {best_text[:100]}...")
-        else:
-            # Fallback: simple OCR
-            best_text = pytesseract.image_to_string(processed_image)
+#         # Choose the best result (longest text usually means better recognition)
+#         best_text = ""
+#         if ocr_results:
+#             # Sort by length (longer text usually means better recognition)
+#             ocr_results.sort(key=lambda x: len(x[1]), reverse=True)
+#             best_text = ocr_results[0][1]
+#             print(f"Best OCR result from {ocr_results[0][0]}: {best_text[:100]}...")
+#         else:
+#             # Fallback: simple OCR
+#             best_text = pytesseract.image_to_string(processed_image)
         
-        # AI-powered text correction and enhancement
-        corrected_text = await correct_ocr_with_ai(best_text)
+#         # AI-powered text correction and enhancement
+#         corrected_text = await correct_ocr_with_ai(best_text)
         
-        # Format with proper LaTeX and Markdown
-        formatted_text = await format_math_text_with_ai(corrected_text)
+#         # Format with proper LaTeX and Markdown
+#         formatted_text = await format_math_text_with_ai(corrected_text)
         
-        return OCRResponse(text=formatted_text, success=True)
+#         return OCRResponse(text=formatted_text, success=True)
         
-    except Exception as e:
-        print(f"OCR Error: {str(e)}")
-        import traceback
-        print(f"Full traceback: {traceback.format_exc()}")
-        return OCRResponse(text="", success=False, error=str(e))
+#     except Exception as e:
+#         print(f"OCR Error: {str(e)}")
+#         import traceback
+#         print(f"Full traceback: {traceback.format_exc()}")
+#         return OCRResponse(text="", success=False, error=str(e))
 
 @app.get("/api/chat/conversations")
 async def get_user_conversations(request: Request):
@@ -1568,39 +1643,55 @@ async def solve_problem(request: Request, problem_text: str = Form(None), image_
     if not user:
         return JSONResponse(content={"error": "Authentication required"}, status_code=401)
     
+    extracted_text = ""
+    used_ocr = False
+
     try:
         # Handle OCR if image is provided
-        if image_data and not problem_text:
-            ocr_response = await extract_text_from_image(OCRRequest(image_data=image_data))
-            if ocr_response.success:
-                problem_text = ocr_response.text
-            else:
-                return JSONResponse(content={"error": "Failed to extract text from image"}, status_code=400)
-        
+        if image_data:
+            used_ocr = True
+            # Decode the base64 string
+            if ',' in image_data:
+                image_data = image_data.split(',')[1]
+            image_bytes = base64.b64decode(image_data)
+            
+            # Use Gemini Vision for OCR
+            ocr_result = await extract_text_with_gemini(image_bytes)
+            
+            if "error" in ocr_result:
+                return JSONResponse(content={"error": f"OCR Failed: {ocr_result['error']}"}, status_code=400)
+            
+            extracted_text = ocr_result["text"]
+            # Set the problem_text to the extracted text for the next step
+            problem_text = extracted_text
+
         if not problem_text:
-            return JSONResponse(content={"error": "No problem provided"}, status_code=400)
-        
-        prompt = f"""Solve this math problem step by step: {problem_text}
+            return JSONResponse(content={"error": "No problem provided or extracted"}, status_code=400)
+            
+        prompt = f"""You are a helpful math tutor AI. A student has provided the following math problem:
 
-Please provide a comprehensive solution with:
-1. Understanding the problem
-2. Step-by-step solution
-3. Final answer
-4. Explanation of key concepts
+Problem:
+---
+{problem_text}
+---
 
-Use markdown formatting and mathematical notation where appropriate."""
+Please provide a comprehensive solution. Structure your response clearly using Markdown formatting and LaTeX for equations. Include these sections:
+1.  **Understanding the Problem:** Briefly rephrase the problem and identify the key goal.
+2.  **Step-by-Step Solution:** Detail each logical step required to solve the problem.
+3.  **Final Answer:** Clearly state the final answer.
+4.  **Key Concepts:** Briefly explain any important mathematical concepts or formulas used in the solution."""
 
         solution = await ai_q(prompt)
         
         return JSONResponse(content={
             "problem": problem_text,
             "solution": solution,
-            "used_ocr": bool(image_data)
+            "used_ocr": used_ocr
         })
         
     except Exception as e:
         print(f"Solve problem error: {str(e)}")
-        return JSONResponse(content={"error": "Failed to solve problem"}, status_code=500)
+        return JSONResponse(content={"error": "An internal error occurred while solving the problem."}, status_code=500)
 
 # Add chat route
 @app.get("/chat", response_class=HTMLResponse)

@@ -175,11 +175,15 @@ class MathChat {
     
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${role}`;
+
+        console.log(content);
+        console.log(this.md2html(content));
         
         if (role === 'assistant') {
             messageDiv.innerHTML = `<div class="message-content">${this.md2html(content)}</div>`;
         } else {
-            messageDiv.innerHTML = `<div class="message-content">${this.escapeHtml(content)}</div>`;
+            messageDiv.innerHTML = `<div class="message-content">${this.md2html(content)}</div>`;
+            this.queueMathJaxRender(messageDiv, 150);
         }
     
         messagesContainer.appendChild(messageDiv);
@@ -494,6 +498,7 @@ class MathChat {
         sendBtn.addEventListener('click', () => {
             const extractedText = document.getElementById('extracted-text').value;
             if (extractedText.trim()) {
+                // extractedText = extractedText.replace(/\\/g, '\\\\');
                 this.closeOCRModal();
                 this.sendOCRMessage(extractedText);
             } else {
@@ -648,6 +653,7 @@ class MathChat {
     async sendMessage() {
         const input = document.getElementById('chat-input');
         const message = input.value.trim();
+        console.log(message)
 
         if (!message) {
             this.showError('Please enter a message first.');
@@ -741,6 +747,12 @@ class MathChat {
         document.getElementById('camera-upload').value = '';
     }
 
+    fixLatex(content) {
+        // Replace escaped block math with correct format
+        return content.replace(/\\\[([^\]]+)\\\]/g, '\\[$1\\]')
+                    .replace(/\\\(([^\)]+)\\\)/g, '\\($1\\)');
+    }
+
     showOCRModal(imageData) {
         const modal = document.getElementById('ocr-preview-modal');
         const previewImg = document.getElementById('ocr-preview-img');
@@ -818,27 +830,36 @@ class MathChat {
                 welcomeMessage.remove();
             }
         }
-    
+
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${role}`;
+
+        console.log(content);
+
+        // Fix LaTeX content for MathJax
+        const fixedContent = this.fixLatex(content);
+        
+        console.log(fixedContent);
+        console.log(this.md2html(fixedContent));
         
         if (role === 'assistant') {
-            setTimeout(() => this.rerenderMathJax(), 100);
-            messageDiv.innerHTML = `<div class="message-content">${this.md2html(content)}</div>`;
+            messageDiv.innerHTML = `<div class="message-content">${this.md2html(fixedContent)}</div>`;
         } else {
-            messageDiv.innerHTML = `<div class="message-content">${this.escapeHtml(content)}</div>`;
+            messageDiv.innerHTML = `<div class="message-content">${this.md2html(fixedContent)}</div>`;
+            this.queueMathJaxRender(messageDiv, 150);
         }
-    
+
         messagesContainer.appendChild(messageDiv);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    
-        // Enhanced MathJax rendering with retry logic
-        if (window.MathJax && role === 'assistant') {
-            setTimeout(() => this.rerenderMathJax(), 100);
-            // Additional retry for complex equations
-            setTimeout(() => this.rerenderMathJax(), 500);
+
+        // Use the queue system for MathJax rendering
+        if (role === 'assistant') {
+            this.queueMathJaxRender(messageDiv, 150);
+            // Additional render after a longer delay for complex content
+            this.queueMathJaxRender(messageDiv, 1000);
         }
     }
+
 
     showTypingIndicator() {
         const messagesContainer = document.getElementById('chat-messages');
