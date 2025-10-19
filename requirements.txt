@@ -18,3 +18,5 @@ md2html
 opencv-python
 pydantic
 google.generativeai
+python-multipart
+slowapi

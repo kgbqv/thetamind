@@ -6,6 +6,7 @@
     <title>ThetaMind - AI Math Learning</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
 </head>
 <body>
     <nav class="navbar">
@@ -15,14 +16,14 @@
                 <li><a href="/" class="active">Home</a></li>
                 <li><a href="/chat">AI Chat</a></li>
                 <li><a href="/tools">Tools</a></li>
+                <li><a href="/coming_soon">Forum</a></li>
                 <li><a href="/documentation">Documentation</a></li>
                 <li><a href="/about">About</a></li>
                 {% if user %}
-                    <li><a href="/dashboard">Dashboard</a></li>
+                    <li><a href="/profile">Profile</a></li>
                     <li><a href="/logout">Logout</a></li>
                 {% else %}
                     <li><a href="/login">Login</a></li>
-                    <li><a href="/register">Register</a></li>
                 {% endif %}
             </ul>
             <div class="nav-right-cluster">
@@ -43,8 +44,8 @@
             <p>Your personal AI-powered math tutor, unlocking potential one equation at a time.</p>
             <div class="banner-buttons">
                 <a href="/chat" class="btn btn-primary">Start Now</a>
-                <a href="{{ '/dashboard' if user else '/register' }}" class="btn btn-secondary">
-                    {{ 'Go to Dashboard' if user else 'Register Now' }}
+                <a href="{{ '/profile' if user else '/register' }}" class="btn btn-secondary">
+                    {{ 'View Profile' if user else 'Register Now' }}
                 </a>
             </div>
         </div>

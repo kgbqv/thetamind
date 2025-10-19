@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - ThetaMind</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/profile.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="logo">θ-Mind</a>
+            <ul class="nav-links">
+                <li><a href="/">Home</a></li>
+                <li><a href="/chat">AI Chat</a></li>
+                <li><a href="/tools">Tools</a></li>
+                <li><a href="/coming_soon">Forum</a></li>
+                <li><a href="/documentation">Documentation</a></li>
+                <li><a href="/about">About</a></li>
+                {% if user %}
+                    <li><a href="/profile" class="active">Profile</a></li>
+                    <li><a href="/logout">Logout</a></li>
+                {% else %}
+                    <li><a href="/login">Login</a></li>
+                {% endif %}
+            </ul>
+            <div class="nav-right-cluster">
+                <button id="theme-toggle" class="theme-toggle-btn"><i class="fas fa-sun"></i><i class="fas fa-moon"></i></button>
+                <div class="nav-toggle">
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="page-content profile-page">
+        <div class="container profile-container">
+            <aside class="profile-sidebar">
+                <div class="profile-card">
+                    <div class="avatar-wrapper">
+                        <img src="{{ profile.avatar_url or '/static/images/default-avatar.png' }}" alt="Profile avatar" class="profile-avatar">
+                        <button class="btn btn-outline btn-sm" id="change-avatar"><i class="fas fa-camera"></i></button>
+                    </div>
+                    <h2>{{ user.username }}</h2>
+                    <p class="user-role">AI Math Enthusiast</p>
+                    <div class="streak-info">
+                        <span class="streak-label">Login Streak</span>
+                        <span class="streak-count">{{ profile.login_streak }} days 🔥</span>
+                    </div>
+                    <div class="profile-stats">
+                        <div>
+                            <span class="label">Coins</span>
+                            <span class="value" id="profile-coins">{{ profile.coins }}</span>
+                        </div>
+                        <div>
+                            <span class="label">Total Chats</span>
+                            <span class="value" id="profile-chats">{{ profile.total_chats }}</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="edit-profile-btn">Edit Profile</button>
+                </div>
+
+                <div class="preferences-card">
+                    <h3>AI Preferences</h3>
+                    <form id="ai-preferences-form">
+                        <div class="preference-group">
+                            <label>Response Length</label>
+                            <div class="toggle-options" data-field="response_length">
+                                <button type="button" data-value="short">Short</button>
+                                <button type="button" data-value="balanced">Balanced</button>
+                                <button type="button" data-value="long">Long</button>
+                            </div>
+                        </div>
+                        <div class="preference-group">
+                            <label>Detail Level</label>
+                            <div class="toggle-options" data-field="detail_level">
+                                <button type="button" data-value="concise">Concise</button>
+                                <button type="button" data-value="detailed">Detailed</button>
+                            </div>
+                        </div>
+                        <div class="preference-group checkbox-list">
+                            <label>Assistive Options</label>
+                            <label class="checkbox-item"><input type="checkbox" name="extra_problems"> Suggest extra practice problems</label>
+                            <label class="checkbox-item"><input type="checkbox" name="steps_only"> Show key steps only</label>
+                            <label class="checkbox-item"><input type="checkbox" name="include_theory"> Include theory recap</label>
+                            <label class="checkbox-item"><input type="checkbox" name="latext_render"> Prefer LaTeX formatting</label>
+                        </div>
+                        <button type="submit" class="btn btn-outline btn-sm">Save Preferences</button>
+                    </form>
+                </div>
+
+                <div class="public-activity-card">
+                    <h3>Public Activity</h3>
+                    <ul id="public-activity-feed">
+                        {% for activity in profile.public_activity %}
+                            <li>
+                                <span class="activity-icon"><i class="fas {{ activity.icon }}"></i></span>
+                                <div>
+                                    <p>{{ activity.message }}</p>
+                                    <small>{{ activity.timestamp }}</small>
+                                </div>
+                            </li>
+                        {% else %}
+                            <li class="empty-state">No public activity yet. Start solving problems!</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </aside>
+
+            <section class="profile-main">
+                <div class="profile-section dashboard-overview">
+                    <div class="section-header">
+                        <h3>Learning Overview</h3>
+                        <!-- <a href="/dashboard" class="link">Go to full dashboard <i class="fas fa-arrow-right"></i></a> -->
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <h4>Topics Mastered</h4>
+                            <span class="metric-value" id="topics-mastered">{{ profile.topics_mastered }}</span>
+                            <small>Keep unlocking badges to level up!</small>
+                        </div>
+                        <div class="metric-card">
+                            <h4>Accuracy</h4>
+                            <span class="metric-value" id="overall-accuracy">{{ profile.accuracy }}%</span>
+                            <small>Based on recent practice sessions</small>
+                        </div>
+                        <div class="metric-card">
+                            <h4>Avg. Response Time</h4>
+                            <span class="metric-value" id="response-time">{{ profile.avg_response_time }}s</span>
+                            <small>AI response benchmark</small>
+                        </div>
+                        <div class="metric-card">
+                            <h4>Weekly XP</h4>
+                            <span class="metric-value" id="weekly-xp">{{ profile.weekly_xp }}</span>
+                            <small>Complete challenges to earn more</small>
+                        </div>
+                    </div>
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h4>Topic Proficiency</h4>
+                            <canvas id="topicProficiencyChart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h4>Weekly Progress</h4>
+                            <canvas id="weeklyProgressChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="profile-section recent-chats">
+                    <div class="section-header">
+                        <h3>Recent Chats</h3>
+                        <a href="/chat" class="link">Open chat <i class="fas fa-comments"></i></a>
+                    </div>
+                    <div class="chat-history" id="recent-chat-history">
+                        <ul>
+                            {% for chat in profile.recent_chats %}
+                                <li>
+                                    <div class="chat-title">{{ chat.title }}</div>
+                                    <div class="chat-meta">
+                                        <span>{{ chat.last_message_preview }}</span>
+                                        <small>{{ chat.updated_at }}</small>
+                                    </div>
+                                </li>
+                            {% else %}
+                                <li class="empty-state">No recent chats. Start a conversation!</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="profile-section preferences-summary">
+                    <div class="section-header">
+                        <h3>Personalized Learning</h3>
+                    </div>
+                    <div class="preferences-cards">
+                        <div class="preference-card">
+                            <h4>Favorite Topics</h4>
+                            <ul>
+                                {% for topic in profile.favorite_topics %}
+                                    <li>{{ topic }}</li>
+                                {% else %}
+                                    <li>No favorites yet. Explore more lessons!</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div class="preference-card">
+                            <h4>Goal Tracker</h4>
+                            <ul>
+                                {% for goal in profile.learning_goals %}
+                                    <li class="goal-item {{ 'completed' if goal.completed else '' }}">
+                                        <i class="fas fa-check-circle"></i>
+                                        <span>{{ goal.title }}</span>
+                                        <small>{{ goal.description }}</small>
+                                    </li>
+                                {% else %}
+                                    <li>No goals set. Create your first learning goal!</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div class="preference-card">
+                            <h4>Upcoming Challenges</h4>
+                            <ul id="upcoming-challenges">
+                                {% for challenge in profile.upcoming_challenges %}
+                                    <li>
+                                        <span class="challenge-title">{{ challenge.title }}</span>
+                                        <small>{{ challenge.due }}</small>
+                                    </li>
+                                {% else %}
+                                    <li>No challenges scheduled. Add some to stay on track!</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="profile-section badges-gallery">
+                    <div class="section-header">
+                        <h3>Badge Collection</h3>
+                        <a href="/dashboard" class="link">View all achievements <i class="fas fa-trophy"></i></a>
+
+                    </div>
+                    <div class="badges-grid" id="profile-badges">
+                        {% for badge in profile.badges %}
+                            <div class="badge">
+                                <span class="badge-medal"><i class="fas fa-medal"></i></span>
+                                <div class="badge-info">
+                                    <strong>{{ badge.name }}</strong>
+                                    <small>{{ badge.description }}</small>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="empty-state">No badges yet. Complete challenges to earn your first badge.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 ThetaMind.</p>
+        </div>
+    </footer>
+
+    <script id="profile-data" type="application/json">{{ profile_json|safe }}</script>
+    <script src="/static/js/profile.js"></script>
+    <script src="/static/js/script.js"></script>
+</body>
+</html>

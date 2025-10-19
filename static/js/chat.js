@@ -8,6 +8,26 @@ class MathChat {
         this.isMobile = this.checkMobile();
         this.mathJaxLoaded = false;
         this.mathJaxQueue = [];
+        this.maxWords = 2000;
+        this.maxCharacters = 10000;
+        this.maxImageSize = 30 * 1024 * 1024; // 30MB
+        this.rateLimit = {
+            messages: { count: 0, lastReset: Date.now(), limit: 50, window: 60000 }, // 50 messages per minute
+            uploads: { count: 0, lastReset: Date.now(), limit: 10, window: 60000 } // 10 uploads per minute
+        };
+        this.suspiciousPatterns = [
+            /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+            /javascript:/gi,
+            /on\w+\s*=/gi,
+            /eval\s*\(/gi,
+            /document\./gi,
+            /window\./gi,
+            /alert\s*\(/gi,
+            /fromCharCode/gi,
+            /\\x[0-9a-f]{2}/gi,
+            /%[0-9a-f]{2}/gi
+        ];
+        
         this.init();
     }
 
@@ -23,8 +43,250 @@ class MathChat {
         this.setupMathJax();
         this.setupMobileFeatures();
         this.setupPreviewFeatures();
+        this.setupSecurityMonitoring();
 
         await this.waitForMathJax();
+    }
+
+    setupSecurityMonitoring() {
+        // Monitor for suspicious activities
+        this.setupInputSanitization();
+        this.setupRateLimitMonitoring();
+        this.setupErrorTracking();
+    }
+
+    setupInputSanitization() {
+        const chatInput = document.getElementById('chat-input');
+        
+        // Input validation and sanitization
+        chatInput.addEventListener('input', (e) => {
+            this.sanitizeInput(e.target);
+        });
+
+        chatInput.addEventListener('paste', (e) => {
+            this.handlePasteEvent(e);
+        });
+    }
+
+    setupRateLimitMonitoring() {
+        // Reset rate limits every minute
+        setInterval(() => {
+            const now = Date.now();
+            Object.keys(this.rateLimit).forEach(key => {
+                if (now - this.rateLimit[key].lastReset > this.rateLimit[key].window) {
+                    this.rateLimit[key].count = 0;
+                    this.rateLimit[key].lastReset = now;
+                }
+            });
+        }, 10000); // Check every 10 seconds
+    }
+
+    setupErrorTracking() {
+        window.addEventListener('error', (e) => {
+            console.error('Global error:', e.error);
+            this.logSecurityEvent('client_error', {
+                message: e.message,
+                filename: e.filename,
+                lineno: e.lineno,
+                colno: e.colno
+            });
+        });
+
+        window.addEventListener('unhandledrejection', (e) => {
+            console.error('Unhandled promise rejection:', e.reason);
+            this.logSecurityEvent('promise_rejection', {
+                reason: e.reason?.toString()
+            });
+        });
+    }
+
+    // Input validation and sanitization
+    sanitizeInput(inputElement) {
+        const value = inputElement.value;
+        
+        // Check for suspicious patterns
+        if (this.detectSuspiciousPatterns(value)) {
+            this.showSecurityWarning('Suspicious input detected. Please remove any scripts or malicious content.');
+            inputElement.value = this.removeSuspiciousContent(value);
+            return;
+        }
+
+        // Check character limit
+        if (value.length > this.maxCharacters) {
+            this.showError(`Message exceeds maximum character limit of ${this.maxCharacters}.`);
+            inputElement.value = value.substring(0, this.maxCharacters);
+            return;
+        }
+
+        // Check word limit in real-time
+        const wordCount = this.countWords(value);
+        if (wordCount > this.maxWords) {
+            this.showError(`Message exceeds maximum word limit of ${this.maxWords}.`);
+            // Truncate to max words
+            inputElement.value = this.truncateToWords(value, this.maxWords);
+        }
+    }
+
+    handlePasteEvent(e) {
+        const clipboardData = e.clipboardData || window.clipboardData;
+        const pastedText = clipboardData.getData('text');
+        
+        if (this.detectSuspiciousPatterns(pastedText)) {
+            e.preventDefault();
+            this.showSecurityWarning('Pasted content contains suspicious patterns and was blocked.');
+            return;
+        }
+
+        // Check if paste would exceed limits
+        const currentText = e.target.value;
+        const newText = currentText + pastedText;
+        
+        if (newText.length > this.maxCharacters) {
+            e.preventDefault();
+            this.showError(`Pasting this content would exceed character limit.`);
+            return;
+        }
+
+        const newWordCount = this.countWords(newText);
+        if (newWordCount > this.maxWords) {
+            e.preventDefault();
+            this.showError(`Pasting this content would exceed word limit.`);
+        }
+    }
+
+    detectSuspiciousPatterns(text) {
+        return this.suspiciousPatterns.some(pattern => pattern.test(text));
+    }
+
+    removeSuspiciousContent(text) {
+        let cleaned = text;
+        this.suspiciousPatterns.forEach(pattern => {
+            cleaned = cleaned.replace(pattern, '');
+        });
+        return cleaned;
+    }
+
+    countWords(text) {
+        return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+    }
+
+    truncateToWords(text, maxWords) {
+        const words = text.trim().split(/\s+/);
+        return words.slice(0, maxWords).join(' ');
+    }
+
+    // Enhanced image upload security
+    handleImageUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Check if file is an image
+        if (!file.type.startsWith('image/')) {
+            this.showError('Please upload only image files (JPEG, PNG, etc.).');
+            this.resetFileInputs();
+            return;
+        }
+
+        // Check file size (max 30MB)
+        if (file.size > this.maxImageSize) {
+            this.showError(`Image size should be less than ${this.formatFileSize(this.maxImageSize)}.`);
+            this.resetFileInputs();
+            return;
+        }
+
+        // Check rate limit for uploads
+        if (!this.checkRateLimit('uploads')) {
+            this.showError('Too many uploads. Please wait a moment before uploading another image.');
+            this.resetFileInputs();
+            return;
+        }
+
+        // Validate image dimensions and type
+        this.validateImageFile(file).then(isValid => {
+            if (!isValid) {
+                this.showError('Invalid image file. Please upload a valid image.');
+                this.resetFileInputs();
+                return;
+            }
+
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                this.currentImageData = e.target.result;
+                this.showOCRModal(e.target.result);
+            };
+
+            reader.onerror = () => {
+                this.showError('Failed to read the image file. Please try again.');
+                this.resetFileInputs();
+            };
+
+            reader.readAsDataURL(file);
+            
+        }).catch(error => {
+            console.error('Image validation error:', error);
+            this.showError('Error validating image. Please try again.');
+            this.resetFileInputs();
+        });
+    }
+
+    validateImageFile(file) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            
+            img.onload = () => {
+                URL.revokeObjectURL(url);
+                
+                // Check image dimensions
+                const maxDimension = 5000;
+                if (img.width > maxDimension || img.height > maxDimension) {
+                    resolve(false);
+                    return;
+                }
+                
+                // Check file type by magic numbers
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const arr = new Uint8Array(e.target.result).subarray(0, 4);
+                    const header = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+                    
+                    // Check for valid image headers
+                    const validHeaders = {
+                        '89504E47': 'png',  // PNG
+                        'FFD8FF': 'jpg',    // JPEG
+                        '47494638': 'gif',  // GIF
+                        '52494646': 'webp'  // WEBP
+                    };
+                    
+                    const isValid = Object.keys(validHeaders).some(h => header.startsWith(h));
+                    resolve(isValid);
+                };
+                
+                reader.onerror = () => resolve(false);
+                reader.readAsArrayBuffer(file.slice(0, 4));
+            };
+            
+            img.onerror = () => {
+                URL.revokeObjectURL(url);
+                resolve(false);
+            };
+            
+            img.src = url;
+        });
+    }
+
+    resetFileInputs() {
+        document.getElementById('gallery-upload').value = '';
+        document.getElementById('camera-upload').value = '';
+    }
+
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
     setupMathJax() {
@@ -652,11 +914,33 @@ class MathChat {
 
     async sendMessage() {
         const input = document.getElementById('chat-input');
-        const message = input.value.trim();
-        console.log(message)
+        let message = input.value.trim();
 
         if (!message) {
             this.showError('Please enter a message first.');
+            return;
+        }
+
+        // Final security checks before sending
+        if (this.detectSuspiciousPatterns(message)) {
+            this.showSecurityWarning('Message contains suspicious content and cannot be sent.');
+            return;
+        }
+
+        const messageWordCount = this.countWords(message);
+        if (messageWordCount > this.maxWords) {
+            this.showError(`Message exceeds maximum word limit of ${this.maxWords}.`);
+            return;
+        }
+
+        if (message.length > this.maxCharacters) {
+            this.showError(`Message exceeds maximum character limit of ${this.maxCharacters}.`);
+            return;
+        }
+
+        // Check rate limit
+        if (!this.checkRateLimit('messages')) {
+            this.showError('Too many messages sent. Please wait a moment before sending another message.');
             return;
         }
 
@@ -664,11 +948,13 @@ class MathChat {
         input.value = '';
         input.style.height = 'auto';
 
-        // Add user message to chat
+        // Add user message to chat (with sanitized content)
         this.addMessage('user', message);
 
         // Show typing indicator
         this.showTypingIndicator();
+
+        console.log(message);
 
         try {
             const response = await fetch('/api/chat/send', {
@@ -682,20 +968,31 @@ class MathChat {
                 })
             });
 
+            // Check for HTTP errors
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+            }
+
             const data = await response.json();
 
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to send message');
+            // Validate response data
+            if (!data || typeof data !== 'object') {
+                throw new Error('Invalid response from server');
             }
 
             // Remove typing indicator
             this.removeTypingIndicator();
 
-            // Add AI response
-            this.addMessage('assistant', data.response);
+            // Add AI response with security check
+            if (data.response && typeof data.response === 'string') {
+                this.addMessage('assistant', data.response);
+            } else {
+                throw new Error('Invalid response format');
+            }
             
             // Update current conversation ID if this was a new chat
-            if (!this.currentConversationId) {
+            if (!this.currentConversationId && data.conversation_id) {
                 this.currentConversationId = data.conversation_id;
                 await this.loadConversations();
                 this.updateChatTitle();
@@ -704,47 +1001,108 @@ class MathChat {
         } catch (error) {
             console.error('Error sending message:', error);
             this.removeTypingIndicator();
-            this.addMessage('assistant', `I'm sorry, I encountered an error: ${error.message}. Please try again.`);
+            this.logSecurityEvent('api_error', { error: error.message });
+            this.addMessage('assistant', `I'm sorry, I encountered an error: ${this.sanitizeError(error.message)}. Please try again.`);
         }
     }
 
     sendOCRMessage(text) {
+        // Security check for OCR text
+        if (this.detectSuspiciousPatterns(text)) {
+            this.showSecurityWarning('Extracted text contains suspicious content and cannot be sent.');
+            return;
+        }
+
+        const wordCount = this.countWords(text);
+        if (wordCount > this.maxWords) {
+            this.showError(`Extracted text exceeds maximum word limit of ${this.maxWords}.`);
+            return;
+        }
+
+        if (text.length > this.maxCharacters) {
+            this.showError(`Extracted text exceeds maximum character limit of ${this.maxCharacters}.`);
+            return;
+        }
+
         document.getElementById('chat-input').value = text;
         this.sendMessage();
     }
+    
+    checkRateLimit(type) {
+        const limit = this.rateLimit[type];
+        if (!limit) return true;
 
-    handleImageUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        // Check if file is an image
-        if (!file.type.startsWith('image/')) {
-            this.showError('Please upload an image file (JPEG, PNG, etc.).');
-            return;
+        const now = Date.now();
+        if (now - limit.lastReset > limit.window) {
+            limit.count = 0;
+            limit.lastReset = now;
         }
 
-        // Check file size (max 10MB)
-        if (file.size > 10 * 1024 * 1024) {
-            this.showError('Image size should be less than 10MB.');
-            return;
+        if (limit.count >= limit.limit) {
+            return false;
         }
 
-        const reader = new FileReader();
-        
-        reader.onload = (e) => {
-            this.currentImageData = e.target.result;
-            this.showOCRModal(e.target.result);
+        limit.count++;
+        return true;
+    }
+
+    // Security logging
+    logSecurityEvent(type, data) {
+        const event = {
+            type,
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            currentConversation: this.currentConversationId,
+            ...data
         };
 
-        reader.onerror = () => {
-            this.showError('Failed to read the image file. Please try again.');
-        };
+        // Send to server for logging
+        this.sendSecurityLog(event).catch(() => {
+            // Fallback to console if server logging fails
+            console.warn('Security event:', event);
+        });
+    }
 
-        reader.readAsDataURL(file);
+    async sendSecurityLog(event) {
+        try {
+            await fetch('/api/security/log', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(event)
+            });
+        } catch (error) {
+            console.error('Failed to send security log:', error);
+        }
+    }
+
+    // Enhanced error handling
+    sanitizeError(error) {
+        // Remove any potentially sensitive information from errors
+        return error.replace(/at .*?\(.*?\)/g, '')
+                   .replace(/\s+/g, ' ')
+                   .trim()
+                   .substring(0, 200); // Limit error length
+    }
+
+    showSecurityWarning(message) {
+        const warningDiv = document.createElement('div');
+        warningDiv.className = 'security-warning';
+        warningDiv.innerHTML = `
+            <div class="warning-content">
+                <i class="fas fa-shield-alt"></i>
+                <span>${this.escapeHtml(message)}</span>
+            </div>
+        `;
         
-        // Reset file inputs
-        document.getElementById('gallery-upload').value = '';
-        document.getElementById('camera-upload').value = '';
+        document.body.appendChild(warningDiv);
+        
+        setTimeout(() => {
+            if (warningDiv.parentNode) {
+                warningDiv.parentNode.removeChild(warningDiv);
+            }
+        }, 5000);
     }
 
     fixLatex(content) {
@@ -807,6 +1165,11 @@ class MathChat {
             extractedText.value = result.text || 'No text could be extracted from the image.';
             sendBtn.disabled = !result.text.trim();
             retryBtn.disabled = false;
+
+            // Check maximum words
+            const wordCount = result.text.split(/\s+/).length;
+            
+            
     
             if (result.text.trim()) {
                 extractedText.removeAttribute('readonly');
@@ -890,13 +1253,13 @@ class MathChat {
             messagesContainer.innerHTML = this.createWelcomeMessage();
             
             // Re-add event listeners for example chips
-            messagesContainer.querySelectorAll('.example-chip').forEach(chip => {
-                chip.addEventListener('click', (e) => {
-                    const question = e.target.dataset.question;
-                    document.getElementById('chat-input').value = question;
-                    this.sendMessage();
-                });
-            });
+            // messagesContainer.querySelectorAll('.example-chip').forEach(chip => {
+            //     chip.addEventListener('click', (e) => {
+            //         const question = e.target.dataset.question;
+            //         document.getElementById('chat-input').value = question;
+            //         this.sendMessage();
+            //     });
+            // });
     
             // Render MathJax for welcome message if needed
             setTimeout(() => this.rerenderMathJax(), 100);
@@ -1127,16 +1490,22 @@ class MathChat {
 
     // Utility functions (keep the existing ones)
     md2html(md) {
+        // Additional sanitization before processing
+        const sanitizedMd = this.removeSuspiciousContent(md);
+        
         marked.setOptions({
             breaks: true,
             gfm: true,
-            sanitize: false
+            sanitize: false // We'll use DOMPurify instead
         });
 
-        const raw = marked.parse(md);
-        const clean = DOMPurify.sanitize(raw);
+        const raw = marked.parse(sanitizedMd);
+        const clean = DOMPurify.sanitize(raw, {
+            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 'pre', 'span', 'div', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+            ALLOWED_ATTR: ['class', 'style'],
+            FORBID_ATTR: ['onclick', 'onload', 'onerror']
+        });
         
-        // Queue MathJax rendering instead of direct call
         this.queueMathJaxRender(null, 100);
         
         return clean;
