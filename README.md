@@ -2,6 +2,8 @@
 
 ThetaMind — AI Math Tutor prototype
 
+Vid demo : https://youtube.com/shorts/BLH2ZLt2yfs?feature=share
+
 ## Setup
 
 1. Cài Tesseract trên máy bạn  
